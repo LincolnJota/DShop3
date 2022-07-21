@@ -1,9 +1,10 @@
-Free version https://www.spigotmc.org/resources/65603/
+### That's a fork, and I'll be doing code maintenance during the original creator's downtime.
 
-**Premium version** https://www.spigotmc.org/resources/100058/
 
-**Donation** https://www.paypal.com/paypalme/7sat
+See the original version [here](https://github.com/7sat/DShop3)
 
-Discord https://discord.gg/5HQjBqU
+[**Paypal Donation**](https://www.paypal.com/donate/?hosted_button_id=T5EGNGEL4EUEL)
+
+Discord: JoyGDR#6722
 
 bStats https://bstats.org/plugin/bukkit/DynamicShop
