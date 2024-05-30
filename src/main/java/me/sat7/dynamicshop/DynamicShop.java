@@ -5,13 +5,18 @@ import me.pikamug.localelib.LocaleManager;
 import me.sat7.dynamicshop.commands.CMDManager;
 import me.sat7.dynamicshop.commands.Optional;
 import me.sat7.dynamicshop.commands.Root;
+import me.sat7.dynamicshop.commands.Sell;
 import me.sat7.dynamicshop.constants.Constants;
-import me.sat7.dynamicshop.events.*;
+import me.sat7.dynamicshop.economyhook.JobsHook;
+import me.sat7.dynamicshop.economyhook.PlayerpointHook;
+import me.sat7.dynamicshop.events.JoinQuit;
+import me.sat7.dynamicshop.events.OnChat;
+import me.sat7.dynamicshop.events.OnClick;
+import me.sat7.dynamicshop.events.OnSignClick;
 import me.sat7.dynamicshop.files.CustomConfig;
 import me.sat7.dynamicshop.guis.QuickSell;
 import me.sat7.dynamicshop.guis.StartPage;
 import me.sat7.dynamicshop.guis.UIManager;
-import me.sat7.dynamicshop.jobshook.JobsHook;
 import me.sat7.dynamicshop.utilities.*;
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.ClickEvent;
@@ -19,23 +24,23 @@ import net.md_5.bungee.api.chat.ComponentBuilder;
 import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.milkbowl.vault.economy.Economy;
-
+import org.black_ixx.playerpoints.PlayerPoints;
+import org.black_ixx.playerpoints.PlayerPointsAPI;
 import org.bstats.bukkit.Metrics;
-import org.bukkit.entity.Player;
-import org.bukkit.plugin.java.JavaPlugin;
-
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
+import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.RegisteredServiceProvider;
+import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
 import java.util.*;
 
-import static me.sat7.dynamicshop.utilities.ConfigUtil.configVersion;
+import static me.sat7.dynamicshop.utilities.LangUtil.t;
 
 public final class DynamicShop extends JavaPlugin implements Listener
 {
@@ -44,6 +49,8 @@ public final class DynamicShop extends JavaPlugin implements Listener
     {
         return econ;
     }
+
+    public static PlayerPointsAPI ppAPI;
 
     public static DynamicShop plugin;
     public static ConsoleCommandSender console;
@@ -61,10 +68,10 @@ public final class DynamicShop extends JavaPlugin implements Listener
     {
         String temp = dsPrefix_;
 
-        if(plugin.getConfig().getBoolean("UI.UseHexColorCode"))
+        if(ConfigUtil.GetUseHexColorCode())
             temp = LangUtil.TranslateHexColor(temp);
 
-        if(isPapiExist && player != null && plugin.getConfig().getBoolean("UI.UsePlaceholderAPI"))
+        if(isPapiExist && player != null && ConfigUtil.GetUsePlaceholderAPI())
             return PlaceholderAPI.setPlaceholders(player, temp);
 
         return temp;
@@ -72,22 +79,99 @@ public final class DynamicShop extends JavaPlugin implements Listener
 
     public static String dsPrefix_ = "§3DShop3 §7| §f";
 
-    public static CustomConfig ccUser;
-    public static CustomConfig ccSign;
+    public static CustomConfig ccSign = new CustomConfig();
 
     private BukkitTask periodicRepetitiveTask;
+    private BukkitTask saveLogsTask;
     private BukkitTask cullLogsTask;
+    private BukkitTask shopSaveTask;
+    private BukkitTask userDataRepetitiveTask;
 
     public static boolean updateAvailable = false;
     public static String lastVersion = "";
     public static String yourVersion = "";
 
     public static UIManager uiManager;
-    public static final HashMap<UUID, String> userTempData = new HashMap<>();
-    public static final HashMap<UUID, String> userInteractItem = new HashMap<>();
 
     public static final LocaleManager localeManager = new LocaleManager();
     public static boolean isPapiExist;
+
+    public static boolean DEBUG_LOG_ENABLED = false;
+    public static void PrintConsoleDbgLog(String msg)
+    {
+        if (DEBUG_LOG_ENABLED)
+            console.sendMessage(DynamicShop.dsPrefix_ + msg);
+    }
+
+    public static boolean DEBUG_MODE = false;
+    public static void DebugLog()
+    {
+        if(!DEBUG_MODE)
+            return;
+
+        console.sendMessage("========== DEBUG LOG ==========");
+
+        console.sendMessage("userTempData: size: " + UserUtil.userTempData.size());
+        int idx = 0;
+        for(Map.Entry<UUID, String> entry : UserUtil.userTempData.entrySet())
+        {
+            console.sendMessage(entry.getKey() + ": " + entry.getValue());
+            idx++;
+            if (idx > 9)
+                break;
+        }
+
+        console.sendMessage("---------------------");
+
+        console.sendMessage("userInteractItem: size: " + UserUtil.userInteractItem.size());
+        idx = 0;
+        for(Map.Entry<UUID, String> entry : UserUtil.userInteractItem.entrySet())
+        {
+            console.sendMessage(entry.getKey() + ": " + entry.getValue());
+            idx++;
+            if (idx > 9)
+                break;
+        }
+
+        console.sendMessage("---------------------");
+
+        console.sendMessage("ShopUtil.shopConfigFiles: size: " + ShopUtil.shopConfigFiles.size());
+        for(Map.Entry<String, CustomConfig> entry : ShopUtil.shopConfigFiles.entrySet())
+            console.sendMessage(entry.getKey() + ": " + entry.getValue());
+
+        console.sendMessage("---------------------");
+
+        console.sendMessage("ShopUtil.ShopUtil.shopDirty: size: " + ShopUtil.shopDirty.size());
+        for(Map.Entry<String, Boolean> entry : ShopUtil.shopDirty.entrySet())
+            console.sendMessage(entry.getKey() + ": " + entry.getValue());
+
+        console.sendMessage("---------------------");
+
+        UIManager.DebugLog();
+
+        //console.sendMessage("---------------------");
+
+        //console.sendMessage("RotationTaskMap: size" + RotationUtil.RotationTaskMap.size());
+        //for(Map.Entry<String, Integer> entry : RotationUtil.RotationTaskMap.entrySet())
+        //    console.sendMessage(entry.getKey() + ": " + entry.getValue());
+
+        console.sendMessage("---------------------");
+
+        for (Map.Entry<String, HashMap<String, HashMap<UUID, Integer>>> entry : UserUtil.tradingVolume.entrySet())
+        {
+            console.sendMessage(entry.getKey());
+            for (Map.Entry<String, HashMap<UUID, Integer>> entry1 : UserUtil.tradingVolume.get(entry.getKey()).entrySet())
+            {
+                console.sendMessage(" - " + entry1.getKey());
+                for (Map.Entry<UUID, Integer> entry2 : UserUtil.tradingVolume.get(entry.getKey()).get(entry1.getKey()).entrySet())
+                {
+                    console.sendMessage(" --- " + entry2.getKey() + " : " + entry2.getValue());
+                }
+            }
+        }
+
+        console.sendMessage("========== DEBUG LOG END ==========");
+    }
 
     @Override
     public void onEnable()
@@ -109,8 +193,12 @@ public final class DynamicShop extends JavaPlugin implements Listener
         InitConfig();
 
         PeriodicRepetitiveTask();
+        startSaveLogsTask();
         startCullLogsTask();
+        StartShopSaveTask();
+        StartUserDataTask();
         hookIntoJobs();
+        hookIntoPlayerPoints();
         InitPapi();
 
         // 완료
@@ -131,7 +219,7 @@ public final class DynamicShop extends JavaPlugin implements Listener
         }
         else
         {
-            console.sendMessage(Constants.DYNAMIC_SHOP_PREFIX + " Vault Found");
+            console.sendMessage(Constants.DYNAMIC_SHOP_PREFIX + " 'Vault' Found");
         }
 
         SetupRSP();
@@ -157,9 +245,9 @@ public final class DynamicShop extends JavaPlugin implements Listener
             }
 
             setupRspRetryCount++;
-            console.sendMessage(Constants.DYNAMIC_SHOP_PREFIX + " Economy provider not found. Retry... " + setupRspRetryCount + "/3");
+            //console.sendMessage(Constants.DYNAMIC_SHOP_PREFIX + " Economy provider not found. Retry... " + setupRspRetryCount + "/3");
 
-            Bukkit.getScheduler().runTaskLater(this, this::SetupRSP, 30L);
+            Bukkit.getScheduler().runTaskLater(this, this::SetupRSP, 40L);
         }
     }
 
@@ -239,24 +327,48 @@ public final class DynamicShop extends JavaPlugin implements Listener
         isPapiExist = Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null;
         if(isPapiExist)
         {
-            console.sendMessage(Constants.DYNAMIC_SHOP_PREFIX + " PlaceholderAPI Found");
+            console.sendMessage(Constants.DYNAMIC_SHOP_PREFIX + " 'PlaceholderAPI' Found");
         }
         else
         {
-            console.sendMessage(Constants.DYNAMIC_SHOP_PREFIX + " PlaceholderAPI Not Found");
+            console.sendMessage(Constants.DYNAMIC_SHOP_PREFIX + " 'PlaceholderAPI' Not Found");
+        }
+    }
+
+    public void startSaveLogsTask()
+    {
+        if (ConfigUtil.GetSaveLogs())
+        {
+            if (saveLogsTask != null)
+            {
+                saveLogsTask.cancel();
+            }
+            saveLogsTask = Bukkit.getScheduler().runTaskTimerAsynchronously(this, LogUtil::SaveLogToCSV, 0L, (20L * 10L));
         }
     }
 
     public void startCullLogsTask()
     {
-        if (getConfig().getBoolean("Log.CullLogs"))
+        if (ConfigUtil.GetCullLogs())
         {
             if (cullLogsTask != null)
             {
                 cullLogsTask.cancel();
             }
-            cullLogsTask = Bukkit.getScheduler().runTaskTimerAsynchronously(this, LogUtil::cullLogs, 0L, (20L * 60L * (long) getConfig().getInt("Log.LogCullTimeMinutes")));
+            cullLogsTask = Bukkit.getScheduler().runTaskTimerAsynchronously(
+                    this, LogUtil::cullLogs, 0L, (20L * 60L * (long) ConfigUtil.GetLogCullTimeMinutes())
+            );
         }
+    }
+
+    public void StartUserDataTask()
+    {
+        if (userDataRepetitiveTask != null)
+            userDataRepetitiveTask.cancel();
+
+        userDataRepetitiveTask = Bukkit.getScheduler().runTaskTimerAsynchronously(
+                this, UserUtil::RepetitiveTask, 0L, 20L * 60L * 60L
+        );
     }
 
     public void PeriodicRepetitiveTask()
@@ -265,7 +377,10 @@ public final class DynamicShop extends JavaPlugin implements Listener
         {
             periodicRepetitiveTask.cancel();
         }
-        periodicRepetitiveTask = Bukkit.getScheduler().runTaskTimer(DynamicShop.plugin, this::RepeatAction, 100, 100); // 1000틱 = 50초/25/12.5
+
+        // 1000틱 = 50초 = 마인크래프트 1시간
+        // 20틱 = 현실시간 1초
+        periodicRepetitiveTask = Bukkit.getScheduler().runTaskTimer(DynamicShop.plugin, this::RepeatAction, 20, 20); 
     }
 
     private int repeatTaskCount = 0;
@@ -277,7 +392,7 @@ public final class DynamicShop extends JavaPlugin implements Listener
         //String time = sdf.format(System.currentTimeMillis());
         //console.sendMessage(time + " / " + repeatTaskCount);
 
-        if(repeatTaskCount == 5)
+        if (repeatTaskCount == 25) // 25초 = 500틱 = 마인크래프트 30분
         {
             ShopUtil.randomChange(new Random());
             repeatTaskCount = 0;
@@ -285,17 +400,44 @@ public final class DynamicShop extends JavaPlugin implements Listener
         UIManager.RefreshUI();
     }
 
+    public void StartShopSaveTask()
+    {
+        if (shopSaveTask != null)
+        {
+            shopSaveTask.cancel();
+        }
+
+        long interval = (20L * 10L);
+        shopSaveTask = Bukkit.getScheduler().runTaskTimer(DynamicShop.plugin, ShopUtil::SaveDirtyShop, interval, interval);
+    }
+
     private void hookIntoJobs()
     {
         // Jobs
         if (getServer().getPluginManager().getPlugin("Jobs") == null)
         {
-            console.sendMessage(Constants.DYNAMIC_SHOP_PREFIX + " Jobs Reborn Not Found");
+            console.sendMessage(Constants.DYNAMIC_SHOP_PREFIX + " 'Jobs Reborn' Not Found");
             JobsHook.jobsRebornActive = false;
         } else
         {
-            console.sendMessage(Constants.DYNAMIC_SHOP_PREFIX + " Jobs Reborn Found");
+            console.sendMessage(Constants.DYNAMIC_SHOP_PREFIX + " 'Jobs Reborn' Found");
             JobsHook.jobsRebornActive = true;
+        }
+    }
+
+    private void hookIntoPlayerPoints()
+    {
+        if (Bukkit.getPluginManager().isPluginEnabled("PlayerPoints"))
+        {
+            console.sendMessage(Constants.DYNAMIC_SHOP_PREFIX + " 'PlayerPoints' Found");
+            ppAPI = PlayerPoints.getInstance().getAPI();
+            PlayerpointHook.isPPActive = true;
+
+        }
+        else
+        {
+            console.sendMessage(Constants.DYNAMIC_SHOP_PREFIX + " 'PlayerPoints' Not Found");
+            PlayerpointHook.isPPActive = false;
         }
     }
 
@@ -304,10 +446,12 @@ public final class DynamicShop extends JavaPlugin implements Listener
         // 명령어 등록 (개별 클레스로 되어있는것들)
         getCommand("DynamicShop").setExecutor(new Root());
         getCommand("shop").setExecutor(new Optional());
+        getCommand("sell").setExecutor(new Sell());
 
         // 자동완성
         getCommand("DynamicShop").setTabCompleter(this);
         getCommand("shop").setTabCompleter(this);
+        getCommand("sell").setTabCompleter(this);
     }
 
     private void registerEvents()
@@ -333,52 +477,20 @@ public final class DynamicShop extends JavaPlugin implements Listener
 
     private void InitConfig()
     {
-        LangUtil.ccLang = new CustomConfig();
-        LayoutUtil.ccLayout = new CustomConfig();
-        ccUser = new CustomConfig();
-        StartPage.ccStartPage = new CustomConfig();
-        ccSign = new CustomConfig();
-        WorthUtil.ccWorth = new CustomConfig();
-        SoundUtil.ccSound = new CustomConfig();
-        LogUtil.ccLog = new CustomConfig();
-
+        UserUtil.Init();
         ShopUtil.Reload();
+        ConfigUtil.Load();
 
-        ConfigUtil.configSetup(this);
-
-        LangUtil.setupLangFile(getConfig().getString("Language"));
+        LangUtil.setupLangFile(ConfigUtil.GetLanguage());  // ConfigUtil.Load() 보다 밑에 있어야함.
         LayoutUtil.Setup();
 
-        setupUserFile();
         StartPage.setupStartPageFile();
         setupSignFile();
         WorthUtil.setupWorthFile();
         SoundUtil.setupSoundFile();
-        LogUtil.setupLogFile();
 
         QuickSell.quickSellGui = new CustomConfig();
         QuickSell.SetupQuickSellGUIFile();
-
-        getConfig().set("Version", configVersion);
-        saveConfig();
-    }
-
-    private void setupUserFile()
-    {
-        ccUser.setup("User", null);
-        ccUser.get().options().copyDefaults(true);
-
-        int userVersion = getConfig().getInt("Version");
-        if (userVersion < 3)
-        {
-            for (String s : ccUser.get().getKeys(false))
-            {
-                ccUser.get().getConfigurationSection(s).set("tmpString", null);
-                ccUser.get().getConfigurationSection(s).set("interactItem", null);
-            }
-        }
-
-        ccUser.save();
     }
 
     private void setupSignFile()
@@ -398,7 +510,22 @@ public final class DynamicShop extends JavaPlugin implements Listener
     @Override
     public void onDisable()
     {
+        if (econ != null)
+        {
+            UserUtil.OnPluginDisable();
+            ShopUtil.ForceSaveAllShop();
+        }
+
         Bukkit.getScheduler().cancelTasks(this);
         console.sendMessage(Constants.DYNAMIC_SHOP_PREFIX + " Disabled");
+    }
+
+    public static void PaidOnlyMsg(Player p)
+    {
+        TextComponent text = new TextComponent("");
+        text.addExtra(DynamicShop.dsPrefix(p) +  t(p, "PAID_VERSION.DESC"));
+        text.addExtra(DynamicShop.CreateLink(t(p, "PAID_VERSION.GET_PREMIUM"), false, ChatColor.WHITE, "https://spigotmc.org/resources/100058"));
+
+        p.spigot().sendMessage(text);
     }
 }

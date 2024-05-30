@@ -45,7 +45,7 @@ public final class ItemsUtil
         StringBuilder finalStr = new StringBuilder();
         for (String s : temparr)
         {
-            s = ("" + s.charAt(0)).toUpperCase() + s.substring(1);
+            s = (String.valueOf(s.charAt(0))).toUpperCase() + s.substring(1);
             finalStr.append(s).append(" ");
         }
         finalStr = new StringBuilder(finalStr.substring(0, finalStr.length() - 1));
@@ -67,7 +67,7 @@ public final class ItemsUtil
         String info = " value:" + data.get().getDouble(idx + ".value");
 
         double valueMin = data.get().getDouble(idx + ".valueMin");
-        if (valueMin > 0.01) info += " min:" + valueMin;
+        if (valueMin > 0.0001) info += " min:" + valueMin;
         double valueMax = data.get().getDouble(idx + ".valueMax");
         if (valueMax > 0) info += " max:" + valueMax;
 
@@ -78,5 +78,22 @@ public final class ItemsUtil
                 replace("{item}", data.get().getString(idx + ".mat")).
                 replace("{info}", info)
         );
+    }
+
+    /**
+     * Converts the item name to a material.
+     *
+     * @param shortname Short name of item.
+     * @return material item
+     */
+    public static Material GetMaterialFromShortname(String shortname) {
+        Material[] materials = Material.values();
+        for (Material material : materials) {
+            String materialShortname = StringUtil.getShortenedNameSign(material.name());
+            if(materialShortname.equals(shortname)) {
+                return material;
+            }
+        }
+        return null;
     }
 }

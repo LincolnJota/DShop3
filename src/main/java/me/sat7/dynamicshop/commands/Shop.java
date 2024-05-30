@@ -1,6 +1,7 @@
 package me.sat7.dynamicshop.commands;
 
 import me.sat7.dynamicshop.files.CustomConfig;
+import me.sat7.dynamicshop.utilities.ConfigUtil;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
@@ -25,7 +26,7 @@ public final class Shop
     {
         if (args.length == 1)
         {
-            return DynamicShop.plugin.getConfig().getString("Command.DefaultShopName");
+            return ConfigUtil.GetDefaultShopName();
         }
         else if (args.length > 1)
         {
@@ -44,7 +45,7 @@ public final class Shop
         if(sender instanceof Player)
             player = (Player) sender;
 
-        if (player != null && args.length == 1 && DynamicShop.plugin.getConfig().getBoolean("Command.OpenStartPageInsteadOfDefaultShop"))
+        if (player != null && args.length == 1 && ConfigUtil.GetOpenStartPageInsteadOfDefaultShop())
         {
             DynaShopAPI.openStartPage(player);
             return;
@@ -85,40 +86,24 @@ public final class Shop
                     return;
                 }
             }
-            if (shopConf.contains("flag.localshop") && !shopConf.contains("flag.deliverycharge") && shopConf.contains("world") && shopConf.contains("pos1") && shopConf.contains("pos2"))
-            {
-                boolean outside = !player.getWorld().getName().equals(shopConf.getString("world"));
 
+            boolean outside = !ShopUtil.CheckShopLocation(shopName, player);
+
+            if (outside && !shopConf.contains("flag.deliverycharge") && !player.hasPermission(Constants.P_ADMIN_REMOTE_ACCESS))
+            {
                 String[] shopPos1 = shopConf.getString("pos1").split("_");
-                String[] shopPos2 = shopConf.getString("pos2").split("_");
                 int x1 = Integer.parseInt(shopPos1[0]);
                 int y1 = Integer.parseInt(shopPos1[1]);
                 int z1 = Integer.parseInt(shopPos1[2]);
-                int x2 = Integer.parseInt(shopPos2[0]);
-                int y2 = Integer.parseInt(shopPos2[1]);
-                int z2 = Integer.parseInt(shopPos2[2]);
 
-                if (!((x1 <= player.getLocation().getBlockX() && player.getLocation().getBlockX() <= x2) ||
-                        (x2 <= player.getLocation().getBlockX() && player.getLocation().getBlockX() <= x1)))
-                    outside = true;
-                if (!((y1 <= player.getLocation().getBlockY() && player.getLocation().getBlockY() <= y2) ||
-                        (y2 <= player.getLocation().getBlockY() && player.getLocation().getBlockY() <= y1)))
-                    outside = true;
-                if (!((z1 <= player.getLocation().getBlockZ() && player.getLocation().getBlockZ() <= z2) ||
-                        (z2 <= player.getLocation().getBlockZ() && player.getLocation().getBlockZ() <= z1)))
-                    outside = true;
+                player.sendMessage(DynamicShop.dsPrefix(player) + t(player, "ERR.LOCAL_SHOP_REMOTE_ACCESS"));
 
-                if (outside && !player.hasPermission(Constants.P_ADMIN_REMOTE_ACCESS))
-                {
-                    player.sendMessage(DynamicShop.dsPrefix(player) + t(player, "ERR.LOCAL_SHOP_REMOTE_ACCESS"));
-
-                    String posString = t(player, "SHOP.SHOP_LOCATION");
-                    posString = posString.replace("{x}", n(x1));
-                    posString = posString.replace("{y}", n(y1));
-                    posString = posString.replace("{z}", n(z1));
-                    player.sendMessage(DynamicShop.dsPrefix(player) + posString);
-                    return;
-                }
+                String posString = t(player, "SHOP.SHOP_LOCATION");
+                posString = posString.replace("{x}", n(x1));
+                posString = posString.replace("{y}", n(y1));
+                posString = posString.replace("{z}", n(z1));
+                player.sendMessage(DynamicShop.dsPrefix(player) + posString);
+                return;
             }
             if (shopConf.contains("shophours") && !player.hasPermission(P_ADMIN_SHOP_EDIT))
             {
@@ -131,7 +116,7 @@ public final class Shop
                     int open = Integer.parseInt(temp[0]);
 
                     player.sendMessage(DynamicShop.dsPrefix(player) + t(player, "TIME.SHOP_IS_CLOSED").
-                            replace("{time}", open + "").replace("{curTime}", curTime + ""));
+                            replace("{time}", String.valueOf(open)).replace("{curTime}", String.valueOf(curTime)));
                     return;
                 }
             }

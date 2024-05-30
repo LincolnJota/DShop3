@@ -5,7 +5,6 @@ import me.sat7.dynamicshop.commands.DSCMD;
 import me.sat7.dynamicshop.commands.Shop;
 import me.sat7.dynamicshop.constants.Constants;
 import me.sat7.dynamicshop.files.CustomConfig;
-import me.sat7.dynamicshop.utilities.LangUtil;
 import me.sat7.dynamicshop.utilities.ShopUtil;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -26,7 +25,7 @@ public class Flag extends DSCMD
     public void SendHelpMessage(Player player)
     {
         player.sendMessage(DynamicShop.dsPrefix(player) + t(player, "HELP.TITLE").replace("{command}", "flag"));
-        player.sendMessage(" - " + t(player, "HELP.USAGE") + ": /ds shop <shopname> flag <flag> <set | unset>");
+        player.sendMessage(" - " + t(player, "HELP.USAGE") + ": ... flag <flag> <set | unset>");
 
         player.sendMessage("");
     }
@@ -60,7 +59,6 @@ public class Flag extends DSCMD
         if (args[3].equalsIgnoreCase("signshop") ||
                 args[3].equalsIgnoreCase("localshop") ||
                 args[3].equalsIgnoreCase("deliverycharge") ||
-                args[3].equalsIgnoreCase("jobpoint") ||
                 args[3].equalsIgnoreCase("showValueChange") ||
                 args[3].equalsIgnoreCase("hidestock") ||
                 args[3].equalsIgnoreCase("hidepricingtype") ||

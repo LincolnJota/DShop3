@@ -1,12 +1,17 @@
 package me.sat7.dynamicshop.utilities;
 
 import java.io.File;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
+import lombok.NonNull;
+import me.sat7.dynamicshop.models.DSItem;
 import me.sat7.dynamicshop.transactions.Calc;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
@@ -15,10 +20,12 @@ import me.sat7.dynamicshop.constants.Constants;
 import me.sat7.dynamicshop.files.CustomConfig;
 
 import static me.sat7.dynamicshop.utilities.LangUtil.t;
+import static me.sat7.dynamicshop.utilities.MathUtil.Clamp;
 
 public final class ShopUtil
 {
     public static final HashMap<String, CustomConfig> shopConfigFiles = new HashMap<>();
+    public static final HashMap<String, Boolean> shopDirty = new HashMap<>();
 
     private ShopUtil()
     {
@@ -29,6 +36,7 @@ public final class ShopUtil
     {
         ReloadAllShop();
         ConvertOldShopData();
+        BackwardCompatibility();
         SetupSampleShopFile();
         SortShopDataAll();
     }
@@ -36,6 +44,7 @@ public final class ShopUtil
     public static void ReloadAllShop()
     {
         shopConfigFiles.clear();
+        shopDirty.clear();
 
         File[] listOfFiles = new File(DynamicShop.plugin.getDataFolder() + "/Shop").listFiles();
         if(listOfFiles != null)
@@ -48,6 +57,137 @@ public final class ShopUtil
                 String shopName = f.getName().substring(0, idx );
                 shopCC.setup(shopName, "Shop");
                 shopConfigFiles.put(shopName, shopCC);
+                shopDirty.put(shopName, false);
+            }
+        }
+    }
+
+    public static void SetupSampleShopFile()
+    {
+        if(ShopUtil.shopConfigFiles.isEmpty())
+        {
+            CustomConfig data = new CustomConfig();
+            data.setup("SampleShop", "Shop");
+
+            data.get().options().header("Shop name can not contain formatting codes, '/' and ' '");
+            data.get().options().copyHeader(true);
+
+            data.get().set("Options.title", "Sample Shop");
+            data.get().set("Options.lore", "This is sample shop");
+            data.get().set("Options.permission", "");
+            data.get().set("Options.page", 2);
+            data.get().set("Options.currency", Constants.S_VAULT);
+            data.get().set("0.mat", "DIRT");
+            data.get().set("0.value", 1);
+            data.get().set("0.median", 10000);
+            data.get().set("0.stock", 10000);
+            data.get().set("1.mat", "COBBLESTONE");
+            data.get().set("1.value", 1.5);
+            data.get().set("1.median", 10000);
+            data.get().set("1.stock", 10000);
+
+            shopConfigFiles.put("SampleShop", data);
+            shopDirty.put("SampleShop", false);
+
+            data.get().options().copyDefaults(true);
+            data.save();
+        }
+    }
+
+    // Shop.yml 한덩어리로 되있는 데이터를 새 버전 방식으로 변환함 (v2 -> v3)
+    public static void ConvertOldShopData()
+    {
+        File file = new File(DynamicShop.plugin.getDataFolder(), "Shop.yml");
+        if (file.exists())
+        {
+            CustomConfig oldShopData = new CustomConfig();
+            oldShopData.setup("Shop", null);
+
+            for(String oldShopName : oldShopData.get().getKeys(false))
+            {
+                ConfigurationSection oldData = oldShopData.get().getConfigurationSection(oldShopName);
+
+                CustomConfig data = new CustomConfig();
+                data.setup(oldShopName, "Shop");
+
+                for(String s : oldData.getKeys(false))
+                {
+                    data.get().set(s, oldData.get(s));
+                }
+
+                if(data.get().contains("Options.hideStock"))
+                {
+                    data.get().set("Options.flag.hidestock", "");
+                    data.get().set("Options.hideStock", null);
+                }
+                if(data.get().contains("Options.hidePricingType"))
+                {
+                    data.get().set("Options.flag.hidepricingtype", "");
+                    data.get().set("Options.hidePricingType", null);
+                }
+                if(!data.get().contains("Options.lore"))
+                {
+                    data.get().set("Options.lore","");
+                }
+
+                data.save();
+
+                ShopUtil.shopConfigFiles.put(oldShopName, data);
+                ShopUtil.shopDirty.put(oldShopName,false);
+            }
+
+            file.delete();
+        }
+    }
+
+    public static void BackwardCompatibility()
+    {
+        int userVersion = ConfigUtil.GetConfigVersion();
+        if (userVersion < 5)
+        {
+            for(Map.Entry<String, CustomConfig> entry : shopConfigFiles.entrySet())
+            {
+                FileConfiguration fc = entry.getValue().get();
+                for(String key : fc.getKeys(false))
+                {
+                    if (fc.contains(key + ".tradeLimitPerPlayer.value"))
+                    {
+                        int old = fc.getInt(key + ".tradeLimitPerPlayer.value");
+                        if (old < 0)
+                        {
+                            fc.set(key + ".tradeLimitPerPlayer.sell", old * -1);
+                        }
+                        else if (old > 0)
+                        {
+                            fc.set(key + ".tradeLimitPerPlayer.buy", old);
+                        }
+
+                        fc.set(key + ".tradeLimitPerPlayer.value", null);
+                    }
+                }
+            }
+        }
+
+        if (userVersion < 7)
+        {
+            for(Map.Entry<String, CustomConfig> entry : shopConfigFiles.entrySet())
+            {
+                FileConfiguration fc = entry.getValue().get();
+                if (fc.contains("Options.flag.jobpoint"))
+                {
+                    fc.set("Options.flag.jobpoint", null);
+                    fc.set("Options.currency", Constants.S_JOBPOINT);
+                }
+                if (fc.contains("Options.flag.playerpoint"))
+                {
+                    fc.set("Options.flag.playerpoint", null);
+                    fc.set("Options.currency", Constants.S_PLAYERPOINT);
+                }
+
+                if (!fc.contains("Options.currency"))
+                {
+                    fc.set("Options.currency", Constants.S_VAULT);
+                }
             }
         }
     }
@@ -91,17 +231,17 @@ public final class ShopUtil
         if (data == null)
             return -1;
 
+        int idx = 0;
         for (String s : data.get().getKeys(false))
         {
-            try
+            if (idx == 0) //Just skips the first data. (=Options). At least it should be much faster than 'tryCatch+parseInt'.
             {
-                int i = Integer.parseInt(s);
-            } catch (Exception e)
-            {
+                idx++;
                 continue;
             }
 
-            if (!data.get().contains(s + ".value")) continue; // 장식용임
+            if (!data.get().contains(s + ".value"))
+                continue; // 장식용임
 
             if (data.get().getString(s + ".mat").equals(item.getType().toString()))
             {
@@ -121,12 +261,39 @@ public final class ShopUtil
         return -1;
     }
 
-    // 상점에 아이탬 추가
-    public static boolean addItemToShop(String shopName, int idx, ItemStack item, double buyValue, double sellValue, double minValue, double maxValue, int median, int stock)
+    public static boolean hashExist(String shopName, String hash)
     {
-        return addItemToShop(shopName, idx, item, buyValue, sellValue, minValue, maxValue, median, stock, -1);
+        if (hash == null || hash.isEmpty())
+            return false;
+
+        CustomConfig data = shopConfigFiles.get(shopName);
+        if (data == null)
+            return false;
+
+        int idx = 0;
+        for (String s : data.get().getKeys(false))
+        {
+            if (idx == 0)
+            {
+                idx++;
+                continue;
+            }
+
+            if (!data.get().contains(s + ".value"))
+                continue; // 장식용임
+
+            String compare = HashUtil.CreateHashString(data.get().getString(s + ".mat"), data.get().getString(s + ".itemStack"));
+            if (hash.equals(compare))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
-    public static boolean addItemToShop(String shopName, int idx, ItemStack item, double buyValue, double sellValue, double minValue, double maxValue, int median, int stock, int maxStock)
+
+    // 상점에 아이탬 추가
+    public static boolean addItemToShop(String shopName, int idx, DSItem dsItem)
     {
         CustomConfig data = shopConfigFiles.get(shopName);
         if (data == null)
@@ -134,56 +301,81 @@ public final class ShopUtil
 
         try
         {
-            data.get().set(idx + ".mat", item.getType().toString());
+            data.get().set(idx + ".mat", dsItem.itemStack.getType().toString());
 
-            if (item.hasItemMeta())
+            if (dsItem.itemStack.hasItemMeta())
             {
-                data.get().set(idx + ".itemStack", item.getItemMeta());
-            } else
+                data.get().set(idx + ".itemStack", dsItem.itemStack.getItemMeta());
+            }
+            else
             {
                 data.get().set(idx + ".itemStack", null);
             }
 
-            if (buyValue > 0)
+            if (dsItem.buyValue > 0)
             {
-                data.get().set(idx + ".value", buyValue);
-                if (buyValue == sellValue)
+                data.get().set(idx + ".value", dsItem.buyValue);
+                if (dsItem.buyValue == dsItem.sellValue)
                 {
                     data.get().set(idx + ".value2", null);
-                } else
+                }
+                else
                 {
-                    data.get().set(idx + ".value2", sellValue);
+                    data.get().set(idx + ".value2", dsItem.sellValue);
                 }
 
-                if (minValue > 0.01)
+                if (dsItem.minPrice > 0.0001)
                 {
-                    data.get().set(idx + ".valueMin", minValue);
-                } else
+                    data.get().set(idx + ".valueMin", dsItem.minPrice);
+                }
+                else
                 {
                     data.get().set(idx + ".valueMin", null);
                 }
 
-                if (maxValue > 0.01)
+                if (dsItem.maxPrice > 0.0001)
                 {
-                    data.get().set(idx + ".valueMax", maxValue);
-                } else
+                    data.get().set(idx + ".valueMax", dsItem.maxPrice);
+                }
+                else
                 {
                     data.get().set(idx + ".valueMax", null);
                 }
 
-                data.get().set(idx + ".median", median);
-                data.get().set(idx + ".stock", stock);
+                data.get().set(idx + ".median", dsItem.median);
+                data.get().set(idx + ".stock", dsItem.stock);
 
-                if(maxStock > 0)
+                if (dsItem.maxStock > 0)
                 {
-                    data.get().set(idx + ".maxStock", maxStock);
+                    data.get().set(idx + ".maxStock", dsItem.maxStock);
                 }
                 else
                 {
                     data.get().set(idx + ".maxStock", null);
                 }
 
-            } else
+                if (dsItem.discount > 0)
+                {
+                    data.get().set(idx + ".discount", dsItem.discount);
+                }
+                else
+                {
+                    data.get().set(idx + ".discount", null);
+                }
+
+                if (dsItem.sellLimit != 0 || dsItem.buyLimit != 0)
+                {
+                    data.get().set(idx + ".tradeLimitPerPlayer.sell", dsItem.sellLimit);
+                    data.get().set(idx + ".tradeLimitPerPlayer.buy", dsItem.buyLimit);
+                    data.get().set(idx + ".tradeLimitPerPlayer.interval", dsItem.tradeLimitInterval);
+                    data.get().set(idx + ".tradeLimitPerPlayer.nextTimer", dsItem.tradeLimitNextTimer);
+                }
+                else
+                {
+                    data.get().set(idx + ".tradeLimitPerPlayer", null);
+                }
+            }
+            else
             {
                 // idx,null하면 안됨. 존재는 하되 하위 데이터만 없어야함.
                 data.get().set(idx + ".value", null);
@@ -193,12 +385,15 @@ public final class ShopUtil
                 data.get().set(idx + ".median", null);
                 data.get().set(idx + ".stock", null);
                 data.get().set(idx + ".maxStock", null);
+                data.get().set(idx + ".discount", null);
+                data.get().set(idx + ".tradeLimitPerPlayer", null);
             }
 
             data.save();
 
             return true;
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             DynamicShop.console.sendMessage(Constants.DYNAMIC_SHOP_PREFIX + " ERR.AddItemToShop.");
             for (StackTraceElement s : e.getStackTrace())
@@ -210,48 +405,70 @@ public final class ShopUtil
     }
 
     // 상점 아이탬의 value, median, stock을 수정
-    public static void editShopItem(String shopName, int idx, double buyValue, double sellValue, double minValue, double maxValue, int median, int stock)
-    {
-        editShopItem(shopName, idx, buyValue, sellValue, minValue, maxValue, median, stock, -1);
-    }
-    public static void editShopItem(String shopName, int idx, double buyValue, double sellValue, double minValue, double maxValue, int median, int stock, int maxStock)
+    public static void editShopItem(String shopName, int idx, DSItem dsItem)
     {
         CustomConfig data = shopConfigFiles.get(shopName);
         if (data == null)
             return;
 
-        data.get().set(idx + ".value", buyValue);
-        if (buyValue == sellValue)
+        data.get().set(idx + ".value", dsItem.buyValue);
+        if (dsItem.buyValue == dsItem.sellValue)
         {
             data.get().set(idx + ".value2", null);
-        } else
-        {
-            data.get().set(idx + ".value2", sellValue);
         }
-        if (minValue > 0.01)
+        else
         {
-            data.get().set(idx + ".valueMin", minValue);
-        } else
+            data.get().set(idx + ".value2", dsItem.sellValue);
+        }
+
+        if (dsItem.minPrice > 0.0001)
+        {
+            data.get().set(idx + ".valueMin", dsItem.minPrice);
+        }
+        else
         {
             data.get().set(idx + ".valueMin", null);
         }
-        if (maxValue > 0.01)
+
+        if (dsItem.maxPrice > 0.0001)
         {
-            data.get().set(idx + ".valueMax", maxValue);
-        } else
+            data.get().set(idx + ".valueMax", dsItem.maxPrice);
+        }
+        else
         {
             data.get().set(idx + ".valueMax", null);
         }
-        if(maxStock > 0)
+
+        if (dsItem.maxStock > 0)
         {
-            data.get().set(idx + ".maxStock", maxStock);
+            data.get().set(idx + ".maxStock", dsItem.maxStock);
         }
         else
         {
             data.get().set(idx + ".maxStock", null);
         }
-        data.get().set(idx + ".median", median);
-        data.get().set(idx + ".stock", stock);
+
+        data.get().set(idx + ".median", dsItem.median);
+        data.get().set(idx + ".stock", dsItem.stock);
+
+        if (dsItem.discount > 0)
+            data.get().set(idx + ".discount", dsItem.discount);
+        else
+            data.get().set(idx + ".discount", null);
+
+        if (dsItem.sellLimit != 0 || dsItem.buyLimit != 0)
+        {
+            data.get().set(idx + ".tradeLimitPerPlayer.sell", dsItem.sellLimit);
+            data.get().set(idx + ".tradeLimitPerPlayer.buy", dsItem.buyLimit);
+            data.get().set(idx + ".tradeLimitPerPlayer.interval", dsItem.tradeLimitInterval);
+            data.get().set(idx + ".tradeLimitPerPlayer.nextTimer", dsItem.tradeLimitNextTimer);
+        }
+        else
+        {
+            data.get().set(idx + ".tradeLimitPerPlayer", null);
+            UserUtil.ClearTradeLimitData(shopName, idx);
+        }
+
         data.save();
     }
 
@@ -261,6 +478,8 @@ public final class ShopUtil
         CustomConfig data = shopConfigFiles.get(shopName);
         if (data == null)
             return;
+
+        UserUtil.ClearTradeLimitData(shopName, idx); // 상점에서 데이터 지우기 전에 실행.
 
         data.get().set(String.valueOf(idx), null);
         data.save();
@@ -320,6 +539,83 @@ public final class ShopUtil
         data.reload();
     }
 
+    // 상점 페이지 스왑
+    public static boolean SwapPage(String shopName, int pageA, int pageB)
+    {
+        if(pageA == pageB)
+            return true;
+
+        CustomConfig data = shopConfigFiles.get(shopName);
+        if (data == null)
+            return false;
+
+        HashMap<Integer, Object> tempA = new HashMap<>();
+        HashMap<Integer, Object> tempB = new HashMap<>();
+
+        for (String s : data.get().getKeys(false))
+        {
+            try
+            {
+                int i = Integer.parseInt(s);
+                if (i >= (pageA - 1) * 45 && i < pageA * 45)
+                {
+                    tempA.put(i, data.get().get(s));
+                    data.get().set(s, null);
+                }
+                if (i >= (pageB - 1) * 45 && i < pageB * 45)
+                {
+                    tempB.put(i, data.get().get(s));
+                    data.get().set(s, null);
+                }
+
+            } catch (Exception ignored)
+            {
+            }
+        }
+
+        tempA.forEach((key, value) ->
+        {
+            key += (pageB - pageA) * 45;
+            data.get().set(String.valueOf(key), value);
+        });
+        tempB.forEach((key, value) ->
+        {
+            key += (pageA - pageB) * 45;
+            data.get().set(String.valueOf(key), value);
+        });
+
+        tempA.clear();
+        tempB.clear();
+
+        data.save();
+        data.reload();
+        return true;
+    }
+
+    public static boolean IsPageEmpty(String shopName, int page)
+    {
+        CustomConfig data = shopConfigFiles.get(shopName);
+        if (data == null)
+            return true;
+
+        if (page < 1 || page > GetShopMaxPage(shopName))
+            return true;
+
+        for (String s : data.get().getKeys(false))
+        {
+            try
+            {
+                int i = Integer.parseInt(s);
+                if (i >= (page - 1) * 45 && i < page * 45)
+                    return false;
+            } catch (Exception ignore)
+            {
+            }
+        }
+
+        return true;
+    }
+
     // 상점 이름 바꾸기
     public static void renameShop(String shopName, String newName)
     {
@@ -331,6 +627,22 @@ public final class ShopUtil
         data.get().set("Options.title", newName);
         shopConfigFiles.put(newName, data);
         shopConfigFiles.remove(shopName);
+        shopDirty.put(newName, false);
+        shopDirty.remove(shopName);
+
+        UserUtil.OnRenameShop(shopName, newName);
+    }
+
+    public static void copyShop(String shopName, String newName)
+    {
+        CustomConfig data = shopConfigFiles.get(shopName);
+        if (data == null)
+            return;
+
+        data.copy(newName);
+        data.get().set("Options.title", newName);
+        shopConfigFiles.put(newName, data);
+        shopDirty.put(newName, false);
     }
 
     // 상점 병합
@@ -377,8 +689,11 @@ public final class ShopUtil
             }
         }
 
+        UserUtil.OnMergeShop(shopA, shopB);
+
         dataB.delete();
         shopConfigFiles.remove(shopB);
+        shopDirty.remove(shopB);
 
         dataA.save();
         dataA.reload();
@@ -456,7 +771,7 @@ public final class ShopUtil
         if (old < 0) return;
 
         double newValue = old + amount;
-        newValue = (Math.round(newValue * 100) / 100.0);
+        newValue = (Math.round(newValue * 10000) / 10000.0);
 
         try
         {
@@ -509,10 +824,16 @@ public final class ShopUtil
 
                 if (worth != 0)
                 {
-                    int numberOfPlayer = DynamicShop.plugin.getConfig().getInt("Shop.NumberOfPlayer");
-                    int sugMid = CalcRecommendedMedian(worth, numberOfPlayer);
+                    int discount = data.get().getInt(itemIndex + ".discount");
+                    int sellLimit = data.get().getInt(itemIndex + ".tradeLimitPerPlayer.sell");
+                    int buyLimit = data.get().getInt(itemIndex + ".tradeLimitPerPlayer.buy");
+                    long tradeLimitInterval = data.get().getLong(itemIndex + ".tradeLimitPerPlayer.interval");
+                    long tradeLimitNextTimer = data.get().getLong(itemIndex + ".tradeLimitPerPlayer.nextTimer");
 
-                    ShopUtil.editShopItem(shop, i, worth, worth, 0.01f, -1, sugMid, sugMid);
+                    int sugMid = CalcRecommendedMedian(worth, ConfigUtil.GetNumberOfPlayer());
+                    DSItem temp = new DSItem(null, worth, worth, 0.0001f, -1, sugMid, sugMid, -1, discount,
+                                             sellLimit, buyLimit, tradeLimitInterval, tradeLimitNextTimer);
+                    ShopUtil.editShopItem(shop, i, temp);
                 } else
                 {
                     if (sender != null)
@@ -535,6 +856,9 @@ public final class ShopUtil
         double bestPrice = -1;
         int tradeIdx = -1;
 
+        String currency = "";
+        ArrayList<String> failReason = new ArrayList<>();
+
         // 접근가능한 상점중 최고가 찾기
         for(Map.Entry<String, CustomConfig> entry : shopConfigFiles.entrySet())
         {
@@ -546,6 +870,8 @@ public final class ShopUtil
                 String permission = data.get().getString("Options.permission");
                 if (permission != null && permission.length() > 0 && !player.hasPermission(permission) && !player.hasPermission(permission + ".sell"))
                 {
+                    if (DynamicShop.DEBUG_LOG_ENABLED)
+                        failReason.add("shopName:" + entry.getKey() + "-no permission");
                     continue;
                 }
             }
@@ -553,27 +879,84 @@ public final class ShopUtil
             // 비활성화된 상점
             boolean enable = data.get().getBoolean("Options.enable", true);
             if (!enable)
+            {
+                if (DynamicShop.DEBUG_LOG_ENABLED)
+                    failReason.add("shopName:" + entry.getKey() + "-shop is disabled");
                 continue;
+            }
 
             // 표지판 전용 상점, 지역상점, 잡포인트 상점
-            if (data.get().contains("Options.flag.localshop") || data.get().contains("Options.flag.signshop") || data.get().contains("Options.flag.jobpoint"))
+            boolean outside = !CheckShopLocation(entry.getKey(), player);
+            if (outside && data.get().contains("Options.flag.localshop") && !data.get().contains("Options.flag.deliverycharge")) {
+                if (DynamicShop.DEBUG_LOG_ENABLED)
+                    failReason.add("shopName:" + entry.getKey() + "-local shop");
                 continue;
+            }
+
+            if (data.get().contains("Options.flag.signshop"))
+            {
+                if (DynamicShop.DEBUG_LOG_ENABLED)
+                    failReason.add("shopName:" + entry.getKey() + "-sign shop");
+                continue;
+            }
 
             // 영업시간 확인
             if (player != null && !CheckShopHour(entry.getKey(), player))
+            {
+                if (DynamicShop.DEBUG_LOG_ENABLED)
+                    failReason.add("shopName:" + entry.getKey() + "-not open hours");
                 continue;
+            }
+
+            double deliveryCosts = CalcShipping(entry.getKey(), player);
+            if (deliveryCosts == -1)
+            {
+                if (DynamicShop.DEBUG_LOG_ENABLED)
+                    failReason.add("shopName:" + entry.getKey() + "-Infinite Delivery Fee (Other World)");
+                continue;
+            }
 
             int sameItemIdx = ShopUtil.findItemFromShop(entry.getKey(), itemStack);
-
             if (sameItemIdx != -1)
             {
                 String tradeType = data.get().getString(sameItemIdx + ".tradeType");
+                if (tradeType != null && tradeType.equalsIgnoreCase("BuyOnly"))
+                {
+                    if (DynamicShop.DEBUG_LOG_ENABLED)
+                        failReason.add("shopName:" + entry.getKey() + "-buy only");
+                    continue; // 구매만 가능함
+                }
 
-                if (tradeType != null && tradeType.equalsIgnoreCase("BuyOnly")) continue; // 구매만 가능함
+                // 여러 재화로 취급중인 경우 지원 안함.
+                if (currency.isEmpty())
+                {
+                    currency = ShopUtil.GetCurrency(data);
+                }
+                else if (!currency.equalsIgnoreCase(ShopUtil.GetCurrency(data)))
+                {
+                    if(player != null)
+                    {
+                        boolean useLocalizedName = ConfigUtil.GetLocalizedItemName();
+                        if (useLocalizedName)
+                        {
+                            String message = DynamicShop.dsPrefix(player) + t(player, "MESSAGE.Q_SEARCH_FAIL_CURRENCY") + " - <item>";
+                            LangUtil.sendMessageWithLocalizedItemName(player, message, itemStack.getType());
+                        }
+                        else
+                        {
+                            player.sendMessage(DynamicShop.dsPrefix(player) + t(player, "MESSAGE.Q_SEARCH_FAIL_CURRENCY") + " - " + ItemsUtil.getBeautifiedName(itemStack.getType()));
+                        }
+                    }
+
+                    return new String[]{"","-2"};
+                }
 
                 // 상점에 돈이 없음
-                if (ShopUtil.getShopBalance(entry.getKey()) != -1 && ShopUtil.getShopBalance(entry.getKey()) < Calc.calcTotalCost(entry.getKey(), String.valueOf(sameItemIdx), itemStack.getAmount()))
+                if (ShopUtil.getShopBalance(entry.getKey()) != -1 &&
+                        ShopUtil.getShopBalance(entry.getKey()) < Calc.calcTotalCost(entry.getKey(), String.valueOf(sameItemIdx), itemStack.getAmount())[0])
                 {
+                    if (DynamicShop.DEBUG_LOG_ENABLED)
+                        failReason.add("shopName:" + entry.getKey() + "-no money in shop");
                     continue;
                 }
 
@@ -581,15 +964,44 @@ public final class ShopUtil
                 int maxStock = data.get().getInt(sameItemIdx + ".maxStock", -1);
                 int stock = data.get().getInt(sameItemIdx + ".stock");
                 if (maxStock != -1 && maxStock <= stock)
+                {
+                    if (DynamicShop.DEBUG_LOG_ENABLED)
+                        failReason.add("shopName:" + entry.getKey() + "-shop reaches max stock");
                     continue;
+                }
+
+                // 플레이어 당 거래량 제한 확인
+                int sellLimit = ShopUtil.GetSellLimitPerPlayer(entry.getKey(), sameItemIdx);
+                if (player != null && sellLimit != 0)
+                {
+                    int tradeAmount = UserUtil.CheckTradeLimitPerPlayer(player, entry.getKey(), sameItemIdx, HashUtil.GetItemHash(itemStack), itemStack.getAmount(), true);
+                    if (tradeAmount == 0)
+                    {
+                        if (DynamicShop.DEBUG_LOG_ENABLED)
+                            failReason.add("shopName:" + entry.getKey() + "-Reached trading volume limit");
+                        continue;
+                    }
+                }
 
                 double value = Calc.getCurrentPrice(entry.getKey(), String.valueOf(sameItemIdx), false);
-                if (bestPrice < value)
+
+                value -= deliveryCosts;
+
+                if (topShopName.isEmpty() || bestPrice < value)
                 {
                     topShopName = entry.getKey();
                     bestPrice = value;
                     tradeIdx = sameItemIdx;
                 }
+            }
+        }
+
+        if (DynamicShop.DEBUG_LOG_ENABLED && topShopName.equals("") && failReason.size() > 0)
+        {
+            DynamicShop.PrintConsoleDbgLog("No shops available for sell. player:" + player + " itemType:" + itemStack.getType() + " Details:");
+            for (String s : failReason)
+            {
+                DynamicShop.PrintConsoleDbgLog(" - " + s);
             }
         }
 
@@ -602,6 +1014,10 @@ public final class ShopUtil
         double bestPrice = Double.MAX_VALUE;
         int tradeIdx = -1;
 
+        int currencyInt = -1;
+
+        ArrayList<String> failReason = new ArrayList<>();
+
         // 접근가능한 상점중 최저가 찾기
         for(Map.Entry<String, CustomConfig> entry : shopConfigFiles.entrySet())
         {
@@ -611,21 +1027,50 @@ public final class ShopUtil
             String permission = data.get().getString("Options.permission");
             if (permission != null && permission.length() > 0 && !player.hasPermission(permission) && !player.hasPermission(permission + ".buy"))
             {
+                if (DynamicShop.DEBUG_LOG_ENABLED)
+                    failReason.add("shopName:" + entry.getKey() + "-no permission");
                 continue;
             }
 
             // 비활성화된 상점
             boolean enable = data.get().getBoolean("Options.enable", true);
             if (!enable)
+            {
+                if (DynamicShop.DEBUG_LOG_ENABLED)
+                    failReason.add("shopName:" + entry.getKey() + "-shop is disabled");
                 continue;
+            }
 
             // 표지판 전용 상점, 지역상점, 잡포인트 상점
-            if (data.get().contains("Options.flag.localshop") || data.get().contains("Options.flag.signshop") || data.get().contains("Options.flag.jobpoint"))
+            boolean outside = !CheckShopLocation(entry.getKey(), player);
+            if (outside && data.get().contains("Options.flag.localshop") && !data.get().contains("Options.flag.deliverycharge")) {
+                if (DynamicShop.DEBUG_LOG_ENABLED)
+                    failReason.add("shopName:" + entry.getKey() + "-local shop");
                 continue;
+            }
+
+            if (data.get().contains("Options.flag.signshop"))
+            {
+                if (DynamicShop.DEBUG_LOG_ENABLED)
+                    failReason.add("shopName:" + entry.getKey() + "-sign shop");
+                continue;
+            }
 
             // 영업시간 확인
             if (!CheckShopHour(entry.getKey(), player))
+            {
+                if (DynamicShop.DEBUG_LOG_ENABLED)
+                    failReason.add("shopName:" + entry.getKey() + "-not open hours");
                 continue;
+            }
+
+            double deliveryCosts = CalcShipping(entry.getKey(), player);
+            if (deliveryCosts == -1)
+            {
+                if (DynamicShop.DEBUG_LOG_ENABLED)
+                    failReason.add("shopName:" + entry.getKey() + "-Infinite Delivery Fee (Other World)");
+                continue;
+            }
 
             int sameItemIdx = ShopUtil.findItemFromShop(entry.getKey(), itemStack);
 
@@ -633,20 +1078,92 @@ public final class ShopUtil
             {
                 String tradeType = data.get().getString(sameItemIdx + ".tradeType");
 
-                if (tradeType != null && tradeType.equalsIgnoreCase("SellOnly")) continue;
+                if (tradeType != null && tradeType.equalsIgnoreCase("SellOnly"))
+                {
+                    if (DynamicShop.DEBUG_LOG_ENABLED)
+                        failReason.add("shopName:" + entry.getKey() + "-sell only");
+                    continue;
+                }
 
                 // 재고가 없음
                 int stock = data.get().getInt(sameItemIdx + ".stock");
                 if (stock != -1 && stock < 2)
+                {
+                    if (DynamicShop.DEBUG_LOG_ENABLED)
+                        failReason.add("shopName:" + entry.getKey() + "-Out of stock");
                     continue;
+                }
+
+                // 여러 재화로 취급중인 경우 지원 안함.
+                int tempCurrencyIndex = 0;
+                if (ShopUtil.GetCurrency(data).equalsIgnoreCase(Constants.S_JOBPOINT))
+                {
+                    tempCurrencyIndex = 1;
+                }
+                else if (ShopUtil.GetCurrency(data).equalsIgnoreCase(Constants.S_PLAYERPOINT))
+                {
+                    tempCurrencyIndex = 2;
+                }
+                else if (ShopUtil.GetCurrency(data).equalsIgnoreCase(Constants.S_EXP))
+                {
+                    tempCurrencyIndex = 3;
+                }
+
+                if (currencyInt == -1)
+                {
+                    currencyInt = tempCurrencyIndex;
+                }
+                else if (currencyInt != tempCurrencyIndex)
+                {
+                    if(player != null)
+                    {
+                        boolean useLocalizedName = ConfigUtil.GetLocalizedItemName();
+                        if (useLocalizedName)
+                        {
+                            String message = DynamicShop.dsPrefix(player) + t(player, "MESSAGE.Q_SEARCH_FAIL_CURRENCY") + " - <item>";
+                            LangUtil.sendMessageWithLocalizedItemName(player, message, itemStack.getType());
+                        }
+                        else
+                        {
+                            player.sendMessage(DynamicShop.dsPrefix(player) + t(player, "MESSAGE.Q_SEARCH_FAIL_CURRENCY") + " - " + ItemsUtil.getBeautifiedName(itemStack.getType()));
+                        }
+                    }
+
+                    return new String[]{"","-2"};
+                }
+
+                // 플레이어 당 거래량 제한 확인
+                int buyLimit = ShopUtil.GetBuyLimitPerPlayer(entry.getKey(), sameItemIdx);
+                if (player != null && buyLimit != 0)
+                {
+                    int tradeAmount = UserUtil.CheckTradeLimitPerPlayer(player, entry.getKey(), sameItemIdx, HashUtil.GetItemHash(itemStack), itemStack.getAmount(), false);
+                    if (tradeAmount == 0)
+                    {
+                        if (DynamicShop.DEBUG_LOG_ENABLED)
+                            failReason.add("shopName:" + entry.getKey() + "-Trading volume limit reached");
+                        continue;
+                    }
+                }
 
                 double value = Calc.getCurrentPrice(entry.getKey(), String.valueOf(sameItemIdx), true);
+
+                value += deliveryCosts;
+
                 if (bestPrice > value)
                 {
                     topShopName = entry.getKey();
                     bestPrice = value;
                     tradeIdx = sameItemIdx;
                 }
+            }
+        }
+
+        if (DynamicShop.DEBUG_LOG_ENABLED && topShopName.equals("") && failReason.size() > 0)
+        {
+            DynamicShop.PrintConsoleDbgLog("No shops available for purchase. player:" + player + " itemType:" + itemStack.getType() + " Details:");
+            for (String s : failReason)
+            {
+                DynamicShop.PrintConsoleDbgLog(" - " + s);
             }
         }
 
@@ -665,21 +1182,21 @@ public final class ShopUtil
     private static int randomStockTimer = 1;
     public static void randomChange(Random generator)
     {
-        boolean legacyStabilizer = DynamicShop.plugin.getConfig().getBoolean("Shop.UseLegacyStockStabilization");
+        boolean legacyStabilizer = ConfigUtil.GetUseLegacyStockStabilization();
+
+        // 인게임 30분마다 실행됨 (500틱)
+        randomStockTimer += 1;
+        if (randomStockTimer >= Integer.MAX_VALUE)
+        {
+            randomStockTimer = 0;
+        }
+        //DynamicShop.console.sendMessage("debug... " + randomStockTimer);
 
         for(Map.Entry<String, CustomConfig> entry : shopConfigFiles.entrySet())
         {
             boolean somethingIsChanged = false;
 
             CustomConfig data = entry.getValue();
-
-            // 인게임 30분마다 실행됨 (500틱)
-            randomStockTimer += 1;
-            if (randomStockTimer >= Integer.MAX_VALUE)
-            {
-                randomStockTimer = 0;
-            }
-            //DynamicShop.console.sendMessage("debug... " + randomStockTimer);
 
             // fluctuation
             ConfigurationSection confSec = data.get().getConfigurationSection("Options.fluctuation");
@@ -733,6 +1250,8 @@ public final class ShopUtil
                     interval = 48;
                 }
 
+                //DynamicShop.console.sendMessage("debug... " + randomStockTimer + " % " + interval + " = " + randomStockTimer % interval);
+
                 if (randomStockTimer % interval != 0) continue;
 
                 for (String item : data.get().getKeys(false))
@@ -765,79 +1284,84 @@ public final class ShopUtil
         }
     }
 
-    public static void SetupSampleShopFile()
+    public static boolean CheckShopLocation(String shopName, Player player)
     {
-        if(ShopUtil.shopConfigFiles.isEmpty())
-        {
-            CustomConfig data = new CustomConfig();
-            data.setup("SampleShop", "Shop");
+        CustomConfig shopData = ShopUtil.shopConfigFiles.get(shopName);
+        if (shopData == null)
+            return true;
 
-            data.get().options().header("Shop name can not contain formatting codes, '/' and ' '");
-            data.get().options().copyHeader(true);
+        ConfigurationSection shopConf = shopData.get().getConfigurationSection("Options");
+        if (shopConf == null)
+            return true;
 
-            data.get().set("Options.page", 2);
-            data.get().set("Options.title", "Sample Shop");
-            data.get().set("Options.lore", "This is sample shop");
-            data.get().set("Options.permission", "");
-            data.get().set("0.mat", "DIRT");
-            data.get().set("0.value", 1);
-            data.get().set("0.median", 10000);
-            data.get().set("0.stock", 10000);
-            data.get().set("1.mat", "COBBLESTONE");
-            data.get().set("1.value", 1.5);
-            data.get().set("1.median", 10000);
-            data.get().set("1.stock", 10000);
-
-            shopConfigFiles.put("SampleShop", data);
-
-            data.get().options().copyDefaults(true);
-            data.save();
+        if (!shopConf.contains("flag.localshop") || !shopConf.contains("world") || !shopConf.contains("pos1") || !shopConf.contains("pos2")) {
+            return true;
         }
+
+        boolean inside = player.getWorld().getName().equals(shopConf.getString("world"));
+
+        String[] shopPos1 = shopConf.getString("pos1").split("_");
+        String[] shopPos2 = shopConf.getString("pos2").split("_");
+        int x1 = Integer.parseInt(shopPos1[0]);
+        int y1 = Integer.parseInt(shopPos1[1]);
+        int z1 = Integer.parseInt(shopPos1[2]);
+        int x2 = Integer.parseInt(shopPos2[0]);
+        int y2 = Integer.parseInt(shopPos2[1]);
+        int z2 = Integer.parseInt(shopPos2[2]);
+
+        if (!((x1 <= player.getLocation().getBlockX() && player.getLocation().getBlockX() <= x2) ||
+                (x2 <= player.getLocation().getBlockX() && player.getLocation().getBlockX() <= x1)))
+            inside = false;
+        if (!((y1 <= player.getLocation().getBlockY() && player.getLocation().getBlockY() <= y2) ||
+                (y2 <= player.getLocation().getBlockY() && player.getLocation().getBlockY() <= y1)))
+            inside = false;
+        if (!((z1 <= player.getLocation().getBlockZ() && player.getLocation().getBlockZ() <= z2) ||
+                (z2 <= player.getLocation().getBlockZ() && player.getLocation().getBlockZ() <= z1)))
+            inside = false;
+
+        return inside;
     }
 
-    // Shop.yml 한덩어리로 되있는 데이터를 새 버전 방식으로 변환함
-    public static void ConvertOldShopData()
+    public static int CalcShipping(String shopName, Player player)
     {
-        File file = new File(DynamicShop.plugin.getDataFolder(), "Shop.yml");
-        if (file.exists())
+        if (player == null)
+            return 0;
+
+        int deliverycharge = 0;
+
+        CustomConfig shopData = ShopUtil.shopConfigFiles.get(shopName);
+        if (shopData == null)
+            return 0;
+
+        ConfigurationSection shopConf = shopData.get().getConfigurationSection("Options");
+        if (shopConf == null)
+            return 0;
+
+
+        if (shopConf.contains("world") && shopConf.contains("pos1") && shopConf.contains("flag.deliverycharge"))
         {
-            CustomConfig oldShopData = new CustomConfig();
-            oldShopData.setup("Shop", null);
+            boolean sameworld = true;
+            boolean outside = !CheckShopLocation(shopName, player);
 
-            for(String oldShopName : oldShopData.get().getKeys(false))
+            if (!player.getWorld().getName().equals(shopConf.getString("world"))) sameworld = false;
+
+            String[] shopPos1 = shopConf.getString("pos1").split("_");
+            int x1 = Integer.parseInt(shopPos1[0]);
+            int y1 = Integer.parseInt(shopPos1[1]);
+            int z1 = Integer.parseInt(shopPos1[2]);
+
+            if (!sameworld)
             {
-                ConfigurationSection oldData = oldShopData.get().getConfigurationSection(oldShopName);
-
-                CustomConfig data = new CustomConfig();
-                data.setup(oldShopName, "Shop");
-
-                for(String s : oldData.getKeys(false))
-                {
-                    data.get().set(s, oldData.get(s));
-                }
-
-                if(data.get().contains("Options.hideStock"))
-                {
-                    data.get().set("Options.flag.hidestock", "");
-                    data.get().set("Options.hideStock", null);
-                }
-                if(data.get().contains("Options.hidePricingType"))
-                {
-                    data.get().set("Options.flag.hidepricingtype", "");
-                    data.get().set("Options.hidePricingType", null);
-                }
-                if(!data.get().contains("Options.lore"))
-                {
-                    data.get().set("Options.lore","");
-                }
-
-                data.save();
-
-                ShopUtil.shopConfigFiles.put(oldShopName, data);
+                deliverycharge = -1;
+            } else if (outside)
+            {
+                Location lo = new Location(player.getWorld(), x1, y1, z1);
+                int dist = (int) (player.getLocation().distance(lo) * 0.1 * ConfigUtil.GetDeliveryChargeScale());
+                deliverycharge = Clamp(dist, ConfigUtil.GetDeliveryChargeMin(), ConfigUtil.GetDeliveryChargeMax());
             }
-
-            file.delete();
         }
+
+        return deliverycharge;
     }
 
     public static void SortShopDataAll()
@@ -960,6 +1484,180 @@ public final class ShopUtil
         else
         {
             return true;
+        }
+    }
+
+    public static void SetShopSellCommand(String shopName, int idx, String command)
+    {
+        CustomConfig shopData = ShopUtil.shopConfigFiles.get(shopName);
+        if (shopData == null)
+            return;
+
+        ConfigurationSection shopConf = shopData.get().getConfigurationSection("Options");
+        if (shopConf == null)
+            return;
+
+        shopConf.set("command.sell." + idx, command);
+        CleanupCommandIndex(shopName, "sell");
+
+        shopData.save();
+    }
+
+    public static void SetShopBuyCommand(String shopName, int idx, String command)
+    {
+        CustomConfig shopData = ShopUtil.shopConfigFiles.get(shopName);
+        if (shopData == null)
+            return;
+
+        ConfigurationSection shopConf = shopData.get().getConfigurationSection("Options");
+        if (shopConf == null)
+            return;
+
+        shopConf.set("command.buy." + idx, command);
+        CleanupCommandIndex(shopName, "buy");
+
+        shopData.save();
+    }
+
+    public static void CleanupCommandIndex(String shopName, String sellBuyString)
+    {
+        CustomConfig shopData = ShopUtil.shopConfigFiles.get(shopName);
+        if (shopData == null)
+            return;
+
+        ArrayList<Object> tempDatas = new ArrayList<>();
+        if (shopData.get().getConfigurationSection("Options.command." + sellBuyString) != null)
+        {
+            for (Map.Entry<String, Object> s : shopData.get().getConfigurationSection("Options.command." + sellBuyString).getValues(false).entrySet())
+            {
+                tempDatas.add(s.getValue());
+            }
+        }
+        shopData.get().set("Options.command." + sellBuyString, null);
+        for (int i = 0; i < tempDatas.size(); i++)
+        {
+            shopData.get().set("Options.command." + sellBuyString + "." + i, tempDatas.get(i));
+        }
+    }
+
+    public static void SaveDirtyShop()
+    {
+        for(Map.Entry<String, Boolean> entry : shopDirty.entrySet())
+        {
+            if(entry.getValue())
+            {
+                if(DynamicShop.DEBUG_MODE)
+                {
+                    DynamicShop.console.sendMessage("DirtyShop Saved: " + entry.getValue());
+                }
+
+                shopDirty.put(entry.getKey(), false);
+                shopConfigFiles.get(entry.getKey()).save();
+            }
+        }
+    }
+
+    public static void ForceSaveAllShop()
+    {
+        for(Map.Entry<String, CustomConfig> entry : shopConfigFiles.entrySet())
+        {
+            entry.getValue().save();
+        }
+    }
+
+    public static int GetSellLimitPerPlayer(String shopName, int idx)
+    {
+        CustomConfig data = ShopUtil.shopConfigFiles.get(shopName);
+
+        if (!data.get().contains(idx + ".tradeLimitPerPlayer"))
+        {
+            return 0;
+        }
+
+        return data.get().getInt(idx + ".tradeLimitPerPlayer.sell");
+    }
+
+    public static int GetBuyLimitPerPlayer(String shopName, int idx)
+    {
+        CustomConfig data = ShopUtil.shopConfigFiles.get(shopName);
+
+        if (!data.get().contains(idx + ".tradeLimitPerPlayer"))
+        {
+            return 0;
+        }
+
+        return data.get().getInt(idx + ".tradeLimitPerPlayer.buy");
+    }
+
+    private final static SimpleDateFormat sdf = new SimpleDateFormat("MM.dd.yyyy HH:mm:ss");
+    public static String GetTradeLimitNextResetTime(String shopName, int idx)
+    {
+        CustomConfig data = ShopUtil.shopConfigFiles.get(shopName);
+
+        boolean somethingChanged = false;
+
+        long interval = data.get().getLong(idx + ".tradeLimitPerPlayer.interval");
+        if (interval == 0)
+        {
+            interval = MathUtil.dayInMilliSeconds;
+            data.get().set(idx + ".tradeLimitPerPlayer.interval", interval);
+            somethingChanged = true;
+        }
+
+        long next = data.get().getLong(idx + ".tradeLimitPerPlayer.nextTimer");
+        if (next == 0)
+        {
+            next = System.currentTimeMillis();
+            next = MathUtil.RoundDown_Time_Hour(next);
+            data.get().set(idx + ".tradeLimitPerPlayer.nextTimer", next);
+
+            somethingChanged = true;
+        }
+
+        long currentTime = System.currentTimeMillis();
+        if (currentTime > next)
+        {
+            while (currentTime > next)
+            {
+                next += interval;
+            }
+
+            next = MathUtil.RoundDown_Time_Hour(next);
+            data.get().set(idx + ".tradeLimitPerPlayer.nextTimer", next);
+
+            UserUtil.ClearTradeLimitData(shopName, idx);
+            somethingChanged = true;
+        }
+
+        if (somethingChanged)
+            ShopUtil.shopDirty.put(shopName, true);
+
+        return sdf.format(next);
+    }
+
+    public static String GetCurrency(@NonNull CustomConfig config)
+    {
+        return GetCurrency(config.get());
+    }
+    public static String GetCurrency(@NonNull FileConfiguration fileConfiguration)
+    {
+        String temp = fileConfiguration.getString("Options.currency", "");
+
+        if (temp.equalsIgnoreCase(Constants.S_EXP))
+        {
+            return Constants.S_EXP;
+        }
+        else if (temp.equalsIgnoreCase(Constants.S_PLAYERPOINT))
+        {
+            return Constants.S_PLAYERPOINT;
+        }
+        else if (temp.equalsIgnoreCase(Constants.S_JOBPOINT))
+        {
+            return Constants.S_JOBPOINT;
+        }
+        else
+        {
+            return Constants.S_VAULT;
         }
     }
 }

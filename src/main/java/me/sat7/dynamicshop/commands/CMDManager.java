@@ -17,6 +17,7 @@ public class CMDManager
     public static OpenShop openShop;
     public static Reload reload;
     public static RenameShop renameShop;
+    public static CopyShop copyShop;
     public static SetDefaultShop setDefaultShop;
     public static SetTax setTax;
 
@@ -27,6 +28,7 @@ public class CMDManager
     public static EditAll editAll;
     public static Enable enable;
     public static Flag flag;
+    public static Currency currency;
     public static Fluctuation fluctuation;
     public static Log log;
     public static MaxPage maxPage;
@@ -36,6 +38,10 @@ public class CMDManager
     public static SetToRecAll setToRecAll;
     public static ShopHours shopHours;
     public static StockStabilizing stockStabilizing;
+    public static Command command;
+    public static ItemInfo itemInfo;
+    public static ResetTradingVolume resetTradingVolume;
+    public static Background background;
 
     public static void Init()
     {
@@ -49,9 +55,11 @@ public class CMDManager
         mergeShop = new MergeShop();
         openShop = new OpenShop();
         renameShop = new RenameShop();
+        copyShop = new CopyShop();
         reload = new Reload();
         setDefaultShop = new SetDefaultShop();
         setTax = new SetTax();
+        itemInfo = new ItemInfo();
 
         CMDHashMap.put("cmdhelp", commandHelp);
         CMDHashMap.put("createshop", createShop);
@@ -60,9 +68,11 @@ public class CMDManager
         CMDHashMap.put("mergeshop", mergeShop);
         CMDHashMap.put("openshop", openShop);
         CMDHashMap.put("renameshop", renameShop);
+        CMDHashMap.put("copyshop", copyShop);
         CMDHashMap.put("reload", reload);
         CMDHashMap.put("setdefaultshop", setDefaultShop);
         CMDHashMap.put("settax", setTax);
+        CMDHashMap.put("iteminfo", itemInfo);
 
         // ds shop
         account = new Account();
@@ -71,6 +81,7 @@ public class CMDManager
         edit = new Edit();
         editAll = new EditAll();
         enable = new Enable();
+        currency = new Currency();
         flag = new Flag();
         fluctuation = new Fluctuation();
         log = new Log();
@@ -81,6 +92,9 @@ public class CMDManager
         setToRecAll = new SetToRecAll();
         shopHours = new ShopHours();
         stockStabilizing = new StockStabilizing();
+        command = new Command();
+        resetTradingVolume = new ResetTradingVolume();
+        background = new Background();
 
         CMDHashMap.put("account", account);
         CMDHashMap.put("add", add);
@@ -88,6 +102,7 @@ public class CMDManager
         CMDHashMap.put("edit", edit);
         CMDHashMap.put("editall", editAll);
         CMDHashMap.put("enable", enable);
+        CMDHashMap.put("currency", currency);
         CMDHashMap.put("flag", flag);
         CMDHashMap.put("fluctuation", fluctuation);
         CMDHashMap.put("log", log);
@@ -98,6 +113,9 @@ public class CMDManager
         CMDHashMap.put("settorecall", setToRecAll);
         CMDHashMap.put("shophours", shopHours);
         CMDHashMap.put("stockstabilizing", stockStabilizing);
+        CMDHashMap.put("command", command);
+        CMDHashMap.put("resettradingvolume", resetTradingVolume);
+        CMDHashMap.put("background", background);
     }
 
     public static void RunCMD(String key, String[] args, CommandSender sender)

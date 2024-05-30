@@ -18,6 +18,13 @@ public class UIManager implements Listener
 {
     private static final HashMap<Player, InGameUI> currentUI = new HashMap<>();
 
+    public static void DebugLog()
+    {
+        DynamicShop.console.sendMessage("currentUI: size" + currentUI.size());
+        for(Map.Entry<Player, InGameUI> entry : currentUI.entrySet())
+            DynamicShop.console.sendMessage(entry.getKey() + ": " + entry.getValue().uiType);
+    }
+
     @SuppressWarnings("EmptyMethod")
     @EventHandler
     public void OnOpen(InventoryOpenEvent e)
@@ -95,7 +102,8 @@ public class UIManager implements Listener
 
     public static void RefreshUI()
     {
-        for (Map.Entry<Player, InGameUI> entry : currentUI.entrySet())
+        HashMap<Player, InGameUI> clone = (HashMap<Player, InGameUI>)currentUI.clone();
+        for (Map.Entry<Player, InGameUI> entry : clone.entrySet())
         {
             Player p = entry.getKey();
             InGameUI ui = entry.getValue();
@@ -104,7 +112,8 @@ public class UIManager implements Listener
                 continue;
 
             if (ui.uiType == InGameUI.UI_TYPE.ItemTrade
-                || ui.uiType == InGameUI.UI_TYPE.Shop)
+                || ui.uiType == InGameUI.UI_TYPE.Shop
+                || ui.uiType == InGameUI.UI_TYPE.RotationEditor)
             {
                 ui.RefreshUI();
             }

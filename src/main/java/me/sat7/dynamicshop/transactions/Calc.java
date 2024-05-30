@@ -31,7 +31,7 @@ public final class Calc
             value = data.getDouble(idx + ".value");
         }
 
-        double min = data.getDouble(idx + ".valueMin", 0.01);
+        double min = data.getDouble(idx + ".valueMin", 0.0001);
         double max = data.getDouble(idx + ".valueMax");
         int median = data.getInt(idx + ".median");
         int stock = data.getInt(idx + ".stock");
@@ -57,6 +57,13 @@ public final class Calc
             price = max;
         }
 
+        // 할인
+        if (data.contains(idx + ".discount"))
+        {
+            int discount = data.getInt(idx + ".discount");
+            price = price * (100 - discount) / 100;
+        }
+
         // 판매세 계산 (임의 지정된 판매가치가 없는 경우에만)
         if (!buy && !data.contains(idx + ".value2"))
         {
@@ -77,8 +84,8 @@ public final class Calc
         }
     }
 
-    // 특정 아이탬의 앞으로 n개의 가치합을 계산 (다이나믹 or 고정가) (세금 반영)
-    public static double calcTotalCost(String shopName, String idx, int amount)
+    // 특정 아이탬의 앞으로 n개의 가치합을 계산 (다이나믹 or 고정가) ([0] 세금 반영된 값, [1] 세금)
+    public static double[] calcTotalCost(String shopName, String idx, int amount)
     {
         FileConfiguration data = ShopUtil.shopConfigFiles.get(shopName).get();
 
@@ -107,7 +114,7 @@ public final class Calc
                     stock++;
                 }
                 double temp = median * value / stock;
-                double min = data.getDouble(idx + ".valueMin", 0.01);
+                double min = data.getDouble(idx + ".valueMin", 0.0001);
                 double max = data.getDouble(idx + ".valueMax");
 
                 if (temp < min)
@@ -132,24 +139,34 @@ public final class Calc
             }
         }
 
+        // 할인
+        if (data.contains(idx + ".discount"))
+        {
+            int discount = data.getInt(idx + ".discount");
+            total = total * (100 - discount) / 100;
+        }
+
         // 세금 적용 (판매가 별도지정시 세금계산 안함)
+        double tax = 0;
         if (amount < 0 && !data.contains(idx + ".value2"))
         {
-            double tax = ((total / 100) * getTaxRate(shopName));
+            tax = ((total / 100) * getTaxRate(shopName));
             total -= tax;
         }
 
         if (data.contains("Options.flag.integeronly"))
         {
             if(amount > 0)
-                return Math.ceil(total);
+                total = Math.ceil(total);
             else
-                return Math.floor(total);
+                total = Math.floor(total);
         }
         else
         {
-            return (Math.round(total * 100) / 100.0);
+            total = (Math.round(total * 10000) / 10000.0);
         }
+
+        return new double[]{total, tax};
     }
 
     // 상점의 세율 반환

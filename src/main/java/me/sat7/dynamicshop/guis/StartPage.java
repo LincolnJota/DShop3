@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 import me.sat7.dynamicshop.DynaShopAPI;
+import me.sat7.dynamicshop.utilities.ConfigUtil;
 import me.sat7.dynamicshop.utilities.ItemsUtil;
 import me.sat7.dynamicshop.utilities.LangUtil;
 import me.sat7.dynamicshop.utilities.ShopUtil;
@@ -31,7 +32,7 @@ public final class StartPage extends InGameUI
         uiType = UI_TYPE.StartPage;
     }
 
-    public static CustomConfig ccStartPage;
+    public static CustomConfig ccStartPage = new CustomConfig();
 
     public static void setupStartPageFile()
     {
@@ -96,7 +97,18 @@ public final class StartPage extends InGameUI
                 }
 
                 ItemStack btn = new ItemStack(Material.getMaterial(cs.getConfigurationSection(s).getString("icon")));
-                ItemMeta meta = btn.getItemMeta();
+                ItemMeta meta;
+
+                if (cs.contains(s + ".itemStack"))
+                {
+                    ItemMeta tempMeta = (ItemMeta) cs.get(s + ".itemStack"); // 저장된 메타 적용
+                    meta = tempMeta.clone();
+                }
+                else
+                {
+                    meta = btn.getItemMeta();
+                }
+
                 meta.setDisplayName(name);
                 meta.setLore(tempList);
                 meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
@@ -192,6 +204,7 @@ public final class StartPage extends InGameUI
                     StartPage.ccStartPage.get().set("Buttons." + e.getSlot() + ".displayName", StartPage.ccStartPage.get().get("Buttons." + selectedIndex + ".displayName"));
                     StartPage.ccStartPage.get().set("Buttons." + e.getSlot() + ".lore", StartPage.ccStartPage.get().get("Buttons." + selectedIndex + ".lore"));
                     StartPage.ccStartPage.get().set("Buttons." + e.getSlot() + ".icon", StartPage.ccStartPage.get().get("Buttons." + selectedIndex + ".icon"));
+                    StartPage.ccStartPage.get().set("Buttons." + e.getSlot() + ".itemStack", StartPage.ccStartPage.get().get("Buttons." + selectedIndex + ".itemStack"));
                     StartPage.ccStartPage.get().set("Buttons." + e.getSlot() + ".action", StartPage.ccStartPage.get().get("Buttons." + selectedIndex + ".action"));
 
                     if (StartPage.ccStartPage.get().getString("Buttons." + selectedIndex + ".action").length() > 0)
@@ -210,7 +223,7 @@ public final class StartPage extends InGameUI
     @Override
     public void OnClickLowerInventory(InventoryClickEvent e)
     {
-        if(!DynamicShop.plugin.getConfig().getBoolean("UI.EnableInventoryClickSearch.StartPage"))
+        if(!ConfigUtil.GetEnableInventoryClickSearch_StartPage())
             return;
 
         Player player = (Player) e.getWhoClicked();
@@ -238,12 +251,17 @@ public final class StartPage extends InGameUI
             ret = ShopUtil.FindTheBestShopToBuy(player, e.getCurrentItem());
         }
 
+        if(ret[1].equals("-2"))
+        {
+            return;
+        }
+
         if(ret[0].isEmpty())
             return;
 
         DynaShopAPI.openShopGui(player, ret[0], Integer.parseInt(ret[1]) / 45 + 1);
 
-        boolean useLocalizedName = DynamicShop.plugin.getConfig().getBoolean("UI.LocalizedItemName");
+        boolean useLocalizedName = ConfigUtil.GetLocalizedItemName();
         String message;
         if(isSell)
         {

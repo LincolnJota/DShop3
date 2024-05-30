@@ -1,6 +1,7 @@
 package me.sat7.dynamicshop;
 
 import lombok.NonNull;
+import me.sat7.dynamicshop.constants.Constants;
 import me.sat7.dynamicshop.files.CustomConfig;
 import me.sat7.dynamicshop.guis.*;
 import me.sat7.dynamicshop.models.DSItem;
@@ -8,6 +9,7 @@ import me.sat7.dynamicshop.transactions.Calc;
 import me.sat7.dynamicshop.transactions.Sell;
 import me.sat7.dynamicshop.utilities.ConfigUtil;
 import me.sat7.dynamicshop.utilities.ShopUtil;
+import me.sat7.dynamicshop.utilities.UserUtil;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
@@ -66,16 +68,18 @@ public final class DynaShopAPI
         UIManager.Open(player, inventory, uiClass);
     }
 
+    // 상점 로테이트 편집기
+    public static void OpenRotationEditor(Player player, String shopName)
+    {
+        DynamicShop.PaidOnlyMsg(player);
+    }
+
     // 거래화면 생성 및 열기
     public static void openItemTradeGui(Player player, String shopName, String tradeIdx)
     {
         if(!IsShopEnable(shopName))
         {
-            if(player.hasPermission(P_ADMIN_SHOP_EDIT))
-            {
-                //player.sendMessage(DynamicShop.dsPrefix(player) + t(player, "MESSAGE.SHOP_DISABLED"));
-            }
-            else
+            if(!player.hasPermission(P_ADMIN_SHOP_EDIT))
             {
                 player.sendMessage(DynamicShop.dsPrefix(player) + t(player, "MESSAGE.SHOP_IS_CLOSED_BY_ADMIN"));
                 return;
@@ -89,25 +93,43 @@ public final class DynaShopAPI
 
 
     // 아이탬 파렛트 생성 및 열기
-    public static void openItemPalette(Player player, String shopName, int targetSlot, int page, String search)
+    public static void openItemPalette(Player player, int uiSubType, String shopName, int targetSlot, int page, String search)
     {
         ItemPalette uiClass = new ItemPalette();
-        Inventory inventory = uiClass.getGui(player, shopName, targetSlot, page, search);
+        Inventory inventory = uiClass.getGui(player, uiSubType, shopName, targetSlot, page, search);
         UIManager.Open(player, inventory, uiClass);
-    }
-
-    // 아이탬 셋팅창
-    public static void openItemSettingGui(Player player, String shopName, int shopSlotIndex, int tab, ItemStack itemStack, double buyValue, double sellValue, double minPrice, double maxPrice, int median, int stock, int maxStock)
-    {
-        DSItem dsItem = new DSItem(itemStack, buyValue, sellValue, minPrice, maxPrice, median, stock, maxStock);
-        openItemSettingGui(player, shopName, shopSlotIndex, tab, dsItem);
     }
 
     public static void openItemSettingGui(Player player, String shopName, int shopSlotIndex, int tab, DSItem dsItem)
     {
+        openItemSettingGui(player, shopName, shopSlotIndex, tab, dsItem, 0);
+    }
+
+    public static void openItemSettingGui(Player player, String shopName, int shopSlotIndex, int tab, DSItem dsItem, int timerOffset)
+    {
         ItemSettings uiClass = new ItemSettings();
-        Inventory inventory = uiClass.getGui(player, shopName, shopSlotIndex, tab, dsItem);
+        Inventory inventory = uiClass.getGui(player, shopName, shopSlotIndex, tab, dsItem, timerOffset);
         UIManager.Open(player, inventory, uiClass);
+    }
+
+    // 페이지 에디터 열기
+    public static void openPageEditor(Player player, String shopName, int page)
+    {
+        PageEditor uiClass = new PageEditor();
+        Inventory inventory = uiClass.getGui(player, shopName, page);
+        UIManager.Open(player, inventory, uiClass);
+    }
+
+    // 로그뷰어 열기
+    public static void openLogViewer(Player player, String shopName)
+    {
+        DynamicShop.PaidOnlyMsg(player);
+    }
+
+    // 재고 시뮬레이터 열기
+    public static void openStockSimulator(Player player, String shopName)
+    {
+        DynamicShop.PaidOnlyMsg(player);
     }
 
     // 스타트 페이지
@@ -145,18 +167,7 @@ public final class DynaShopAPI
     // 유저 데이터를 다시 만들고 만들어졌는지 확인함.
     public static boolean recreateUserData(Player player)
     {
-        if (DynamicShop.ccUser.get().contains(player.getUniqueId().toString()))
-        {
-            return true;
-        }
-
-        DynamicShop.userTempData.put(player.getUniqueId(), "");
-        DynamicShop.userInteractItem.put(player.getUniqueId(), "");
-        DynamicShop.ccUser.get().set(player.getUniqueId() + ".cmdHelp", true);
-        DynamicShop.ccUser.get().set(player.getUniqueId() + ".lastJoin", System.currentTimeMillis());
-        DynamicShop.ccUser.save();
-
-        return DynamicShop.ccUser.get().contains(player.getUniqueId().toString());
+        return UserUtil.RecreateUserData(player);
     }
 
     // 스타트페이지 셋팅창
@@ -231,7 +242,6 @@ public final class DynaShopAPI
                     continue; // 장식용임
                 }
 
-                Material m;
                 String itemName = data.get().getString(s + ".mat"); // 메테리얼
                 try
                 {
@@ -357,25 +367,6 @@ public final class DynaShopAPI
     }
 
     /**
-     * Get whether a shop is for Vault money or Jobs points
-     *
-     * @param shopName The shop to check the type of
-     * @return True if it is a Job Point shop, False if it is a Vault economy money shop
-     * @throws IllegalArgumentException When the shop does not exist
-     */
-    public static boolean isJobsPointShop(@NonNull String shopName) throws IllegalArgumentException
-    {
-        if (validateShopName(shopName))
-        {
-            CustomConfig data = ShopUtil.shopConfigFiles.get(shopName);
-            return data.get().contains("Options.flag.jobpoint");
-        } else
-        {
-            throw new IllegalArgumentException("Shop: " + shopName + " does not exist");
-        }
-    }
-
-    /**
      * Check if a shop exists
      *
      * @param shopName The shop name to check for
@@ -391,7 +382,7 @@ public final class DynaShopAPI
      * Depending on the player's permission and the state of the store, there may not be an appropriate target.
      *
      * @param player seller
-     * @return [0]shopName. return "" if null. [1]tradeIdx. return -1 if null.
+     * @return [0]shopName. return "" if null. [1]tradeIdx. Return -1 if null. Returns -2 if selling in multiple currencies.
      */
     public static String[] FindTheBestShopToSell(Player player, ItemStack itemStack, boolean openTradeView)
     {
@@ -409,17 +400,35 @@ public final class DynaShopAPI
      * Quick Sell
      *
      * @param player seller. This can be null. If null, permission and time are not checked.
-     * @param itemStack Item to sell)
+     * @param itemStack Item to sell.
      * @return price sum.
      */
     public static double QuickSell(Player player, ItemStack itemStack)
     {
+        return QuickSell(player, itemStack, -1, true);
+    }
+    public static double QuickSell(Player player, ItemStack itemStack, boolean playSound)
+    {
+        return QuickSell(player, itemStack, -1, playSound);
+    }
+    public static double QuickSell(Player player, ItemStack itemStack, int slot)
+    {
+        return QuickSell(player,itemStack, slot, true);
+    }
+    public static double QuickSell(Player player, ItemStack itemStack, int slot, boolean playSound)
+    {
+        if (itemStack == null || itemStack.getType().isAir())
+            return 0;
+
         String[] ret = ShopUtil.FindTheBestShopToSell(player, itemStack);
+
+        if (ret[1].equals("-2"))
+            return 0;
 
         if (!validateShopName(ret[0]))
             return 0;
 
-        return Sell.quickSellItem(player, itemStack, ret[0], Integer.parseInt(ret[1]), true, -1);
+        return Sell.quickSellItem(player, itemStack, ret[0], Integer.parseInt(ret[1]), slot == -1, slot, playSound);
     }
 
     /**
@@ -431,5 +440,56 @@ public final class DynaShopAPI
     public static int FindEmptySlot(String shopName)
     {
         return ShopUtil.findEmptyShopSlot(shopName, 0, false);
+    }
+
+    //------------
+    /**
+     * Get whether a shop is for Vault money or Jobs points
+     *
+     * @param shopName The shop to check the type of
+     * @return True if it is a Job Point shop.
+     * @throws IllegalArgumentException When the shop does not exist
+     */
+    public static boolean isJobsPointShop(@NonNull String shopName) throws IllegalArgumentException
+    {
+        if (validateShopName(shopName))
+        {
+            CustomConfig data = ShopUtil.shopConfigFiles.get(shopName);
+            return ShopUtil.GetCurrency(data).equalsIgnoreCase(Constants.S_JOBPOINT);
+        } else
+        {
+            throw new IllegalArgumentException("Shop: " + shopName + " does not exist");
+        }
+    }
+
+    /**
+     * Get whether a shop is for Vault money or Player points
+     *
+     * @param shopName The shop to check the type of
+     * @return True if it is a Player Point shop
+     * @throws IllegalArgumentException When the shop does not exist
+     */
+    public static boolean isPlayerPointShop(@NonNull String shopName) throws IllegalArgumentException
+    {
+        if (validateShopName(shopName))
+        {
+            CustomConfig data = ShopUtil.shopConfigFiles.get(shopName);
+            return ShopUtil.GetCurrency(data).equalsIgnoreCase(Constants.S_PLAYERPOINT);
+        } else
+        {
+            throw new IllegalArgumentException("Shop: " + shopName + " does not exist");
+        }
+    }
+
+    public static String GetShopCurrency(@NonNull String shopName)
+    {
+        if (validateShopName(shopName))
+        {
+            CustomConfig data = ShopUtil.shopConfigFiles.get(shopName);
+            return ShopUtil.GetCurrency(data);
+        } else
+        {
+            throw new IllegalArgumentException("Shop: " + shopName + " does not exist");
+        }
     }
 }

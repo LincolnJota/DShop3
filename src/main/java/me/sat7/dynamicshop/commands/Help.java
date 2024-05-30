@@ -1,5 +1,7 @@
 package me.sat7.dynamicshop.commands;
 
+import me.sat7.dynamicshop.commands.shop.Command;
+import me.sat7.dynamicshop.utilities.UserUtil;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -23,14 +25,14 @@ public final class Help
     // 명령어 도움말 표시
     public static void showHelp(String helpcode, Player player, String[] args)
     {
-        if (!DynamicShop.ccUser.get().getBoolean(player.getUniqueId() + ".cmdHelp"))
+        if (!UserUtil.ccUser.get().getBoolean(player.getUniqueId() + ".cmdHelp"))
             return;
 
         UUID uuid = player.getUniqueId();
-        if (DynamicShop.userTempData.get(uuid).equals(helpcode))
+        if (UserUtil.userTempData.get(uuid).equals(helpcode))
             return;
 
-        DynamicShop.userTempData.put(uuid, helpcode);
+        UserUtil.userTempData.put(uuid, helpcode);
 
         if (helpcode.equals("main"))
         {
@@ -53,7 +55,7 @@ public final class Help
             if (player.hasPermission(P_ADMIN_SHOP_EDIT) || player.hasPermission(P_ADMIN_EDIT_ALL))
             {
                 player.sendMessage(" - " + t(player, "HELP.USAGE")
-                        + ": /ds shop <shopname> <enable | addhand | add | edit | editall | setToRecAll | sellbuy | permission | maxpage | flag | position | shophours | fluctuation | stockStabilizing | account | log>");
+                   + ": /ds shop <shopname> <enable | addhand | add | edit | editall | setToRecAll | sellbuy | permission | maxpage | flag | currency | position | shophours | fluctuation | stockStabilizing | command | account | log | resetTradingVolume | background>");
             }
 
             if (player.hasPermission(P_ADMIN_SHOP_EDIT))
@@ -147,7 +149,10 @@ public final class Help
         } else if (helpcode.equals("cmd_help"))
         {
             CMDManager.commandHelp.SendHelpMessage(player);
-        } else if (helpcode.equals("create_shop"))
+        }else if (helpcode.equals("iteminfo"))
+        {
+            CMDManager.itemInfo.SendHelpMessage(player);
+        }else if (helpcode.equals("create_shop"))
         {
             CMDManager.createShop.SendHelpMessage(player);
         } else if (helpcode.equals("delete_shop"))
@@ -159,12 +164,18 @@ public final class Help
         } else if (helpcode.equals("rename_shop"))
         {
             CMDManager.renameShop.SendHelpMessage(player);
+        } else if (helpcode.equals("copy_shop"))
+        {
+            CMDManager.copyShop.SendHelpMessage(player);
         } else if (helpcode.equals("permission"))
         {
             CMDManager.permission.SendHelpMessage(player);
         } else if (helpcode.equals("max_page"))
         {
             CMDManager.maxPage.SendHelpMessage(player);
+        } else if (helpcode.equals("currency"))
+        {
+            CMDManager.currency.SendHelpMessage(player);
         } else if (helpcode.equals("flag"))
         {
             CMDManager.flag.SendHelpMessage(player);
@@ -180,6 +191,10 @@ public final class Help
         } else if (helpcode.equals("stock_stabilizing"))
         {
             CMDManager.stockStabilizing.SendHelpMessage(player);
+        } else if (helpcode.equals("command"))
+        {
+            CMDManager.command.SendHelpMessage(player);
+            Command.PrintCurrentState(player, Shop.GetShopName(args), true, true);
         } else if (helpcode.equals("account"))
         {
             CMDManager.account.SendHelpMessage(player);
@@ -198,6 +213,14 @@ public final class Help
         } else if (helpcode.equals("log"))
         {
             CMDManager.log.SendHelpMessage(player);
+        }
+        else if (helpcode.equals("resetTradingVolume"))
+        {
+            CMDManager.resetTradingVolume.SendHelpMessage(player);
+        }
+        else if (helpcode.equals("background"))
+        {
+            CMDManager.background.SendHelpMessage(player);
         }
     }
 }

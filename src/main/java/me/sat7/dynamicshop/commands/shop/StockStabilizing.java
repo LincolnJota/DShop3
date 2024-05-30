@@ -4,7 +4,6 @@ import me.sat7.dynamicshop.DynamicShop;
 import me.sat7.dynamicshop.commands.DSCMD;
 import me.sat7.dynamicshop.commands.Shop;
 import me.sat7.dynamicshop.files.CustomConfig;
-import me.sat7.dynamicshop.utilities.LangUtil;
 import me.sat7.dynamicshop.utilities.ShopUtil;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -27,8 +26,8 @@ public class StockStabilizing extends DSCMD
     public void SendHelpMessage(Player player)
     {
         player.sendMessage(DynamicShop.dsPrefix(player) + t(player, "HELP.TITLE").replace("{command}", "stockStabilizing"));
-        player.sendMessage(" - " + t(player, "HELP.USAGE") + ": /ds shop <shopname> stockStabilizing <interval> <strength>");
-        player.sendMessage(" - " + t(player, "HELP.USAGE") + ": /ds shop <shopname> stockStabilizing off");
+        player.sendMessage(" - " + t(player, "HELP.USAGE") + ": ... stockStabilizing <interval> <strength>");
+        player.sendMessage(" - " + t(player, "HELP.USAGE") + ": ... stockStabilizing off");
 
         player.sendMessage("");
     }

@@ -1,5 +1,6 @@
 package me.sat7.dynamicshop.commands;
 
+import me.sat7.dynamicshop.constants.Constants;
 import me.sat7.dynamicshop.files.CustomConfig;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -51,6 +52,7 @@ public final class CreateShop extends DSCMD
             data.get().set("Options.enable", false);
             data.get().set("Options.lore", "");
             data.get().set("Options.page", 2);
+            data.get().set("Options.currency", Constants.S_VAULT);
             if (args.length >= 3)
             {
                 if (args[2].equalsIgnoreCase("true"))
@@ -75,6 +77,7 @@ public final class CreateShop extends DSCMD
             data.save();
 
             ShopUtil.shopConfigFiles.put(shopname, data);
+            ShopUtil.shopDirty.put(shopname, false);
 
             sender.sendMessage(DynamicShop.dsPrefix(sender) + t(sender, "MESSAGE.SHOP_CREATED"));
 

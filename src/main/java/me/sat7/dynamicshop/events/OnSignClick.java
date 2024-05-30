@@ -3,8 +3,11 @@ package me.sat7.dynamicshop.events;
 import me.sat7.dynamicshop.DynaShopAPI;
 import me.sat7.dynamicshop.DynamicShop;
 import me.sat7.dynamicshop.constants.Constants;
+import me.sat7.dynamicshop.utilities.ItemsUtil;
 import me.sat7.dynamicshop.utilities.ShopUtil;
 
+import me.sat7.dynamicshop.utilities.StringUtil;
+import me.sat7.dynamicshop.utilities.UserUtil;
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
@@ -26,39 +29,33 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import static me.sat7.dynamicshop.constants.Constants.*;
 import static me.sat7.dynamicshop.utilities.LangUtil.t;
+import static org.bukkit.Material.*;
 
 public class OnSignClick implements Listener
 {
     // 생성
     @EventHandler
-    public void onSignChange(SignChangeEvent e)
-    {
+    public void onSignChange(SignChangeEvent e) {
         if (!e.getPlayer().hasPermission(P_ADMIN_CREATE_SIGN)) return;
 
-        //noinspection ConstantConditions
         if (e.getLine(0).equalsIgnoreCase("[dshop]")
-            || e.getLine(0).equalsIgnoreCase("[ds]")
-            || e.getLine(0).equalsIgnoreCase("[dynamicshop]"))
-        {
+                || e.getLine(0).equalsIgnoreCase("[ds]")
+                || e.getLine(0).equalsIgnoreCase("[dynamicshop]")) {
             String signId = CreateID(e.getBlock());
 
-            if (e.getLine(1).length() == 0)
-            {
-                e.setLine(1, "Error");
-                e.setLine(2, "shop name is null");
-                e.getBlock().getState().update();
+            if (e.getLine(1).length() == 0) {
+                e.getBlock().breakNaturally();
+                e.getPlayer().sendMessage(DynamicShop.dsPrefix(e.getPlayer()) + t(e.getPlayer(),"ERR.SHOP_NULL"));
                 return;
             }
 
-            if (!ShopUtil.shopConfigFiles.containsKey(e.getLine(1)))
-            {
-                e.setLine(1, "Error");
-                e.setLine(2, "No shop");
-                e.setLine(3, "with that name");
-                e.getBlock().getState().update();
+            if (!ShopUtil.shopConfigFiles.containsKey(e.getLine(1))) {
+                e.getBlock().breakNaturally();
+                e.getPlayer().sendMessage(DynamicShop.dsPrefix(e.getPlayer()) + t(e.getPlayer(), "ERR.SHOP_NOT_EXIST"));
                 return;
             }
 
@@ -71,42 +68,44 @@ public class OnSignClick implements Listener
 
             Block tempBlock = e.getBlock();
             Block blockBehind = null;
-            if (tempBlock.getState() instanceof Sign)
-            {
+            if (tempBlock.getState() instanceof Sign) {
                 BlockData data = tempBlock.getBlockData();
-                if (data instanceof Directional)
-                {
+                if (data instanceof Directional) {
                     Directional directional = (Directional) data;
                     blockBehind = tempBlock.getRelative(directional.getFacing().getOppositeFace());
                 }
             }
-            if (blockBehind != null)
-            {
+            if (blockBehind != null) {
                 DynamicShop.ccSign.get().set(signId + ".attached", CreateID(blockBehind));
-            } else
-            {
-                e.setLine(1, "Error");
-                e.setLine(2, "Sign must be ");
-                e.setLine(3, "placed on wall");
-                e.getBlock().getState().update();
-                DynamicShop.console.sendMessage(Constants.DYNAMIC_SHOP_PREFIX + "Err. Sign must be placed on wall. " + signId);
+            } else {
+                e.getBlock().breakNaturally();
+                e.getPlayer().sendMessage(DynamicShop.dsPrefix(e.getPlayer()) + t(e.getPlayer(), "ERR.SIGN_WALL"));
                 return;
             }
 
-            try
-            {
-                String shop = ChatColor.stripColor(e.getLine(1));
-                String mat = ChatColor.stripColor(e.getLine(2)).toUpperCase();
-                int i = ShopUtil.findItemFromShop(shop, new ItemStack(Material.getMaterial(mat)));
+            String shop = ChatColor.stripColor(e.getLine(1));
+            String signItemName = Objects.requireNonNull(e.getLine(2));
+            Material mat = ItemsUtil.GetMaterialFromShortname(signItemName);
 
-                e.setLine(2, ShopUtil.shopConfigFiles.get(shop).get().getString(i + ".mat"));
-
-                DynamicShop.ccSign.get().set(signId + ".mat", mat);
-            } catch (Exception exception)
-            {
+            if(mat != null) {
+                int i = ShopUtil.findItemFromShop(shop, new ItemStack(mat));
+                if(i != -1) {
+                    e.setLine(2, signItemName);
+                    e.getBlock().getState().update();
+                    DynamicShop.ccSign.get().set(signId + ".mat", mat.name().toUpperCase());
+                    e.getPlayer().sendMessage(DynamicShop.dsPrefix(e.getPlayer()) + t(e.getPlayer(), "MESSAGE.SIGN_SHOP_CREATED"));
+                } else {
+                    e.getBlock().breakNaturally();
+                    e.getPlayer().sendMessage(DynamicShop.dsPrefix(e.getPlayer()) + t(e.getPlayer(), "ERR.SIGN_ITEM_NOT_FOR_SALE"));
+                }
+            }  else if (signItemName.isEmpty()) {
                 e.setLine(2, "");
+                e.getBlock().getState().update();
+                e.getPlayer().sendMessage(DynamicShop.dsPrefix(e.getPlayer()) + t(e.getPlayer(), "MESSAGE.SIGN_SHOP_CREATED"));
+            } else {
+                e.getBlock().breakNaturally();
+                e.getPlayer().sendMessage(DynamicShop.dsPrefix(e.getPlayer()) + t(e.getPlayer(), "ERR.SIGN_ITEM_INVALID"));
             }
-
             DynamicShop.ccSign.save();
         }
     }
@@ -121,7 +120,16 @@ public class OnSignClick implements Listener
         {
             if (e.getClickedBlock().getType().toString().contains("WALL_SIGN"))
             {
-                Sign s = (Sign) e.getClickedBlock().getState();
+                Sign s = null;
+                try
+                {
+                    s = (Sign) e.getClickedBlock().getState();
+                }
+                catch (Exception ignored){}
+
+                if (s == null)
+                    return;
+
                 String signId = CreateID(e.getClickedBlock());
 
                 // 정보가 없음
@@ -137,14 +145,18 @@ public class OnSignClick implements Listener
                         s.setLine(0, "");
                         s.setLine(1, "§a" + s.getLine(1));
 
-                        try
-                        {
-                            String mat = ChatColor.stripColor(s.getLine(2)).toUpperCase();
-                            int i = ShopUtil.findItemFromShop(shop, new ItemStack(Material.getMaterial(mat)));
-                            s.setLine(2, ShopUtil.shopConfigFiles.get(shop).get().getString(i + ".mat"));
-                            DynamicShop.ccSign.get().set(signId + ".mat", mat);
-                        } catch (Exception exception)
-                        {
+                        String signItemName = s.getLine(2);
+                        Material mat = ItemsUtil.GetMaterialFromShortname(signItemName);
+                        if(mat != null) {
+                            int i = ShopUtil.findItemFromShop(shop, new ItemStack(mat));
+                            if (i != -1) {
+                                String itemShortName = StringUtil.getShortenedNameSign(mat.name());
+                                s.setLine(2, itemShortName);
+                                DynamicShop.ccSign.get().set(signId + ".mat", mat.name().toUpperCase());
+                            } else {
+                                s.setLine(2, "");
+                            }
+                        } else {
                             s.setLine(2, "");
                         }
 
@@ -191,7 +203,7 @@ public class OnSignClick implements Listener
                     {
                         String itemName = p.getInventory().getItemInMainHand().getType().name();
                         if(itemName.contains("INK_SAC") || itemName.contains("_DYE"))
-                        return;
+                            return;
                     }
 
 
@@ -208,21 +220,21 @@ public class OnSignClick implements Listener
 
                     try
                     {
-                        int idx = ShopUtil.findItemFromShop(shopName, new ItemStack(Material.getMaterial(DynamicShop.ccSign.get().getString(signId + ".mat"))));
+                        int idx = ShopUtil.findItemFromShop(shopName, new ItemStack(getMaterial(DynamicShop.ccSign.get().getString(signId + ".mat"))));
 
                         if (idx != -1)
                         {
-                            DynamicShop.userTempData.put(p.getUniqueId(), "sign");
+                            UserUtil.userTempData.put(p.getUniqueId(), "sign");
 
                             DynaShopAPI.openItemTradeGui(p, shopName, String.valueOf(idx));
                         } else
                         {
-                            DynamicShop.userTempData.put(p.getUniqueId(), "sign");
+                            UserUtil.userTempData.put(p.getUniqueId(), "sign");
                             DynaShopAPI.openShopGui(p, shopName, 1);
                         }
                     } catch (Exception exception)
                     {
-                        DynamicShop.userTempData.put(p.getUniqueId(), "sign");
+                        UserUtil.userTempData.put(p.getUniqueId(), "sign");
                         DynaShopAPI.openShopGui(p, shopName, 1);
                     }
                 }

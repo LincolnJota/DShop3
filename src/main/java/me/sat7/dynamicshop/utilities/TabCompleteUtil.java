@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 import me.sat7.dynamicshop.files.CustomConfig;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
@@ -40,9 +41,21 @@ public final class TabCompleteUtil
             temp.clear();
             autoCompleteList.clear();
 
-            if (cmd.getName().equalsIgnoreCase("shop") && args.length == 1)
+            if (cmd.getName().equalsIgnoreCase("sell") && args.length == 1)
             {
-                if (!dynamicShop.getConfig().getBoolean("Command.UseShopCommand")) return autoCompleteList;
+                if (sender.hasPermission(P_SELL))
+                {
+                    temp.add("hand");
+                    temp.add("handall");
+                    temp.add("all");
+                    AddToAutoCompleteIfValid(args[0]);
+                }
+
+                return autoCompleteList;
+            }
+            else if (cmd.getName().equalsIgnoreCase("shop") && args.length == 1)
+            {
+                if (!ConfigUtil.GetUseShopCommand()) return autoCompleteList;
 
                 for (Map.Entry<String, CustomConfig> entry : ShopUtil.shopConfigFiles.entrySet())
                 {
@@ -56,7 +69,7 @@ public final class TabCompleteUtil
 
                     String permission = options.getString("permission", "");
                     if (permission.isEmpty()
-                            || !DynamicShop.plugin.getConfig().getBoolean("Command.PermissionCheckWhenCreatingAShopList")
+                            || !ConfigUtil.GetPermissionCheckWhenCreatingAShopList()
                             || p.hasPermission(permission))
                         temp.add(entry.getKey());
                 }
@@ -75,12 +88,14 @@ public final class TabCompleteUtil
                     if (sender.hasPermission(P_ADMIN_DELETE_SHOP)) temp.add("deleteshop");
                     if (sender.hasPermission(P_ADMIN_MERGE_SHOP)) temp.add("mergeshop");
                     if (sender.hasPermission(P_ADMIN_RENAME_SHOP)) temp.add("renameshop");
+                    if (sender.hasPermission(P_ADMIN_COPY_SHOP)) temp.add("copyshop");
                     if (sender.hasPermission(P_ADMIN_OPEN_SHOP)) temp.add("openshop");
                     if (sender.hasPermission(P_ADMIN_SET_TAX)) temp.add("settax");
                     if (sender.hasPermission(P_ADMIN_SET_TAX)) temp.add("settax temp");
                     if (sender.hasPermission(P_ADMIN_SET_DEFAULT_SHOP)) temp.add("setdefaultshop");
                     if (sender.hasPermission(P_ADMIN_DELETE_OLD_USER)) temp.add("deleteOldUser");
                     if (sender.hasPermission(P_ADMIN_RELOAD)) temp.add("reload");
+                    if (sender.hasPermission(P_ADMIN_ITEM_INFO)) temp.add("iteminfo");
                     temp.add("cmdHelp");
 
                     AddToAutoCompleteIfValid(args[0]);
@@ -107,7 +122,7 @@ public final class TabCompleteUtil
 
                             String permission = options.getString("permission", "");
                             if (permission.isEmpty()
-                                    || !DynamicShop.plugin.getConfig().getBoolean("Command.PermissionCheckWhenCreatingAShopList")
+                                    || !ConfigUtil.GetPermissionCheckWhenCreatingAShopList()
                                     || p.hasPermission(permission))
                                 temp.add(entry.getKey());
                         }
@@ -118,7 +133,6 @@ public final class TabCompleteUtil
                         return null;
                     } else if (args.length == 3)
                     {
-                        //add,addhand,edit,editall,permission,maxpage,flag
                         if (sender.hasPermission(P_ADMIN_SHOP_EDIT))
                         {
                             temp.add("enable");
@@ -129,14 +143,18 @@ public final class TabCompleteUtil
                             temp.add("setToRecAll");
                             temp.add("permission");
                             temp.add("maxpage");
+                            temp.add("currency");
                             temp.add("flag");
                             temp.add("position");
                             temp.add("shophours");
                             temp.add("fluctuation");
                             temp.add("stockStabilizing");
+                            temp.add("command");
                             temp.add("account");
                             temp.add("sellbuy");
                             temp.add("log");
+                            temp.add("resetTradingVolume");
+                            temp.add("background");
                         }
 
                         AddToAutoCompleteIfValid(args[2]);
@@ -171,7 +189,7 @@ public final class TabCompleteUtil
                             } else if (args.length == 5)
                             {
                                 String mat = args[3].toUpperCase();
-                                String userTempStr = DynamicShop.userTempData.get(uuid);
+                                String userTempStr = UserUtil.userTempData.get(uuid);
 
                                 if (!(userTempStr.contains("add") && userTempStr.length() > 3))
                                 {
@@ -225,6 +243,7 @@ public final class TabCompleteUtil
                                 temp.add("stock");
                                 temp.add("median");
                                 temp.add("maxStock");
+                                temp.add("discount");
 
                                 AddToAutoCompleteIfValid(args[3]);
                             } else if (args.length == 5)
@@ -238,7 +257,7 @@ public final class TabCompleteUtil
                                 AddToAutoCompleteIfValid(args[4]);
                             } else if (args.length == 6)
                             {
-                                if (args[4].equals("="))
+                                if (args[4].equals("=") && !args[3].equals("discount"))
                                 {
                                     temp.add("purchaseValue");
                                     temp.add("salesValue");
@@ -247,6 +266,7 @@ public final class TabCompleteUtil
                                     temp.add("stock");
                                     temp.add("median");
                                     temp.add("maxStock");
+                                    temp.add("discount");
 
                                     AddToAutoCompleteIfValid(args[5]);
                                 }
@@ -268,6 +288,18 @@ public final class TabCompleteUtil
                         } else if (args[2].equalsIgnoreCase("maxpage") && sender.hasPermission(P_ADMIN_SHOP_EDIT))
                         {
                             Help.showHelp("max_page", (Player) sender, args);
+                        } else if (args[2].equalsIgnoreCase("currency") && sender.hasPermission(P_ADMIN_SHOP_EDIT))
+                        {
+                            if (args.length == 4)
+                            {
+                                temp.add("vault");
+                                temp.add("exp");
+                                temp.add("jobpoint");
+                                temp.add("playerpoint");
+                                AddToAutoCompleteIfValid(args[3]);
+                            }
+
+                            Help.showHelp("currency", (Player) sender, args);
                         } else if (args[2].equalsIgnoreCase("flag") && sender.hasPermission(P_ADMIN_SHOP_EDIT))
                         {
                             if (args.length == 4)
@@ -275,7 +307,6 @@ public final class TabCompleteUtil
                                 temp.add("signShop");
                                 temp.add("localShop");
                                 temp.add("deliveryCharge");
-                                temp.add("jobPoint");
                                 temp.add("showValueChange");
                                 temp.add("hideStock");
                                 temp.add("hidePricingType");
@@ -315,6 +346,35 @@ public final class TabCompleteUtil
                         } else if (args[2].equalsIgnoreCase("stockStabilizing") && sender.hasPermission(P_ADMIN_SHOP_EDIT))
                         {
                             Help.showHelp("stock_stabilizing", (Player) sender, args);
+                        } else if (args[2].equalsIgnoreCase("command") && sender.hasPermission(P_ADMIN_SHOP_EDIT))
+                        {
+                            if (args.length == 4)
+                            {
+                                temp.add("sell");
+                                temp.add("buy");
+                                temp.add("active");
+
+                                AddToAutoCompleteIfValid(args[3]);
+                            }
+                            else if (args.length == 5 && args[3].equalsIgnoreCase("active"))
+                            {
+                                temp.add("true");
+                                temp.add("false");
+
+                                AddToAutoCompleteIfValid(args[4]);
+                            }
+                            else if (args[3].equalsIgnoreCase("sell") || args[3].equalsIgnoreCase("buy"))
+                            {
+                                if(args.length == 5)
+                                {
+                                    temp.add("add");
+                                    temp.add("delete");
+
+                                    AddToAutoCompleteIfValid(args[4]);
+                                }
+                            }
+
+                            Help.showHelp("command", (Player) sender, args);
                         } else if (args[2].equalsIgnoreCase("account") && sender.hasPermission(P_ADMIN_SHOP_EDIT))
                         {
                             if (args.length == 4)
@@ -372,11 +432,58 @@ public final class TabCompleteUtil
                                 temp.add("enable");
                                 temp.add("disable");
                                 temp.add("clear");
+                                temp.add("printToConsole");
+                                temp.add("printToAdmin");
 
                                 AddToAutoCompleteIfValid(args[3]);
 
                                 Help.showHelp("log", (Player) sender, args);
                             }
+                            else if (args.length == 5)
+                            {
+                                temp.add("on");
+                                temp.add("off");
+
+                                AddToAutoCompleteIfValid(args[4]);
+                            }
+                        } else if (args[2].equalsIgnoreCase("resetTradingVolume") && sender.hasPermission(P_ADMIN_SHOP_EDIT))
+                        {
+                            if (args.length == 4)
+                            {
+                                for (OfflinePlayer players : Bukkit.getServer().getOfflinePlayers())
+                                {
+                                    temp.add(players.getName());
+                                }
+
+                                AddToAutoCompleteIfValid(args[3]);
+
+                                Help.showHelp("resetTradingVolume", (Player) sender, args);
+                            }
+                        } else if (args[2].equalsIgnoreCase("background") && sender.hasPermission(P_ADMIN_SHOP_EDIT))
+                        {
+                            if (args.length == 4)
+                            {
+                                temp.add("clear");
+                                temp.add("black");
+                                temp.add("gray");
+                                temp.add("light_gray");
+                                temp.add("white");
+                                temp.add("cyan");
+                                temp.add("light_blue");
+                                temp.add("blue");
+                                temp.add("brown");
+                                temp.add("green");
+                                temp.add("lime");
+                                temp.add("yellow");
+                                temp.add("orange");
+                                temp.add("pink");
+                                temp.add("magenta");
+                                temp.add("purple");
+                                temp.add("red");
+                                AddToAutoCompleteIfValid(args[3]);
+                            }
+
+                            Help.showHelp("background", (Player) sender, args);
                         }
                     }
                 } else if (args[0].equalsIgnoreCase("createshop") && sender.hasPermission(P_ADMIN_CREATE_SHOP))
@@ -432,6 +539,16 @@ public final class TabCompleteUtil
                     }
 
                     Help.showHelp("rename_shop", (Player) sender, args);
+                } else if (args[0].equalsIgnoreCase("copyshop") && sender.hasPermission(P_ADMIN_COPY_SHOP))
+                {
+                    if (args.length == 2)
+                    {
+                        temp.addAll(ShopUtil.shopConfigFiles.keySet());
+
+                        AddToAutoCompleteIfValid(args[1]);
+                    }
+
+                    Help.showHelp("copy_shop", (Player) sender, args);
                 } else if (args[0].equalsIgnoreCase("cmdHelp"))
                 {
                     if (args.length == 2)
@@ -441,7 +558,10 @@ public final class TabCompleteUtil
 
                         Help.showHelp("cmd_help", (Player) sender, args);
                     }
-                } else if (args[0].equalsIgnoreCase("settax"))
+                } else if (args[0].equalsIgnoreCase("iteminfo"))
+                {
+                    Help.showHelp("iteminfo", (Player) sender, args);
+                }  else if (args[0].equalsIgnoreCase("settax"))
                 {
                     Help.showHelp("set_tax", (Player) sender, args);
                 } else if (args[0].equalsIgnoreCase("setdefaultshop"))

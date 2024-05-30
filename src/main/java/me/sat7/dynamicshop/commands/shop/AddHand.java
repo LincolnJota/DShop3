@@ -3,6 +3,7 @@ package me.sat7.dynamicshop.commands.shop;
 import me.sat7.dynamicshop.DynamicShop;
 import me.sat7.dynamicshop.commands.DSCMD;
 import me.sat7.dynamicshop.commands.Shop;
+import me.sat7.dynamicshop.models.DSItem;
 import me.sat7.dynamicshop.utilities.ItemsUtil;
 import me.sat7.dynamicshop.utilities.ShopUtil;
 import org.bukkit.Material;
@@ -25,8 +26,8 @@ public class AddHand extends DSCMD
     public void SendHelpMessage(Player player)
     {
         player.sendMessage(DynamicShop.dsPrefix(player) + t(player, "HELP.TITLE").replace("{command}", "addhand"));
-        player.sendMessage(" - " + t(player, "HELP.USAGE") + ": /ds shop <shopname> addhand <value> <median> <stock>");
-        player.sendMessage(" - " + t(player, "HELP.USAGE") + ": /ds shop <shopname> addhand <value> <min value> <max value> <median> <stock>");
+        player.sendMessage(" - " + t(player, "HELP.USAGE") + ": ... addhand <value> <median> <stock>");
+        player.sendMessage(" - " + t(player, "HELP.USAGE") + ": ... addhand <value> <min value> <max value> <median> <stock>");
         player.sendMessage(" - " + t(player, "HELP.SHOP_ADD_HAND"));
         player.sendMessage(" - " + t(player, "HELP.PRICE"));
         player.sendMessage(" - " + t(player, "HELP.INF_STATIC"));
@@ -42,7 +43,7 @@ public class AddHand extends DSCMD
 
         String shopName = Shop.GetShopName(args);
         double buyValue;
-        double valueMin = 0.01;
+        double valueMin = 0.0001;
         double valueMax = -1;
         int median;
         int stock;
@@ -80,7 +81,7 @@ public class AddHand extends DSCMD
                 }
             }
 
-            if (buyValue < 0.01 || median == 0 || stock == 0)
+            if (buyValue < 0.0001 || median == 0 || stock == 0)
             {
                 player.sendMessage(DynamicShop.dsPrefix(player) + t(player, "ERR.VALUE_ZERO"));
                 return;
@@ -105,6 +106,8 @@ public class AddHand extends DSCMD
             return;
         }
 
+        DSItem temp = new DSItem(player.getInventory().getItemInMainHand(), buyValue, buyValue, valueMin, valueMax, median, stock);
+
         // 상점에서 같은 아이탬 찾기
         int idx = ShopUtil.findItemFromShop(shopName, player.getInventory().getItemInMainHand());
         // 상점에 새 아이탬 추가
@@ -114,7 +117,7 @@ public class AddHand extends DSCMD
             if (idx == -1)
             {
                 player.sendMessage(DynamicShop.dsPrefix(player) + t(player, "ERR.NO_EMPTY_SLOT"));
-            } else if (ShopUtil.addItemToShop(shopName, idx, player.getInventory().getItemInMainHand(), buyValue, buyValue, valueMin, valueMax, median, stock)) // 아이탬 추가
+            } else if (ShopUtil.addItemToShop(shopName, idx, temp)) // 아이탬 추가
             {
                 player.sendMessage(DynamicShop.dsPrefix(player) + t(player, "MESSAGE.ITEM_ADDED"));
                 ItemsUtil.sendItemInfo(player, shopName, idx, "HELP.ITEM_INFO");
@@ -123,7 +126,7 @@ public class AddHand extends DSCMD
         // 기존 아이탬 수정
         else
         {
-            ShopUtil.editShopItem(shopName, idx, buyValue, buyValue, valueMin, valueMax, median, stock);
+            ShopUtil.editShopItem(shopName, idx, temp);
             player.sendMessage(DynamicShop.dsPrefix(player) + t(player, "MESSAGE.ITEM_UPDATED"));
             ItemsUtil.sendItemInfo(player, shopName, idx, "HELP.ITEM_INFO");
         }

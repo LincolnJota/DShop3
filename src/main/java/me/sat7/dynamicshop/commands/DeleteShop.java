@@ -1,6 +1,7 @@
 package me.sat7.dynamicshop.commands;
 
 import me.sat7.dynamicshop.files.CustomConfig;
+import me.sat7.dynamicshop.utilities.UserUtil;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
@@ -40,6 +41,9 @@ public final class DeleteShop extends DSCMD
             data.delete();
 
             ShopUtil.shopConfigFiles.remove(args[1]);
+            ShopUtil.shopDirty.remove(args[1]);
+            UserUtil.ClearTradeLimitData(args[1]);
+
             sender.sendMessage(DynamicShop.dsPrefix(sender) + t(sender, "MESSAGE.SHOP_DELETED"));
         } else
         {

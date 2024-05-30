@@ -3,6 +3,7 @@ package me.sat7.dynamicshop.commands.shop;
 import me.sat7.dynamicshop.DynamicShop;
 import me.sat7.dynamicshop.commands.DSCMD;
 import me.sat7.dynamicshop.commands.Shop;
+import me.sat7.dynamicshop.constants.Constants;
 import me.sat7.dynamicshop.files.CustomConfig;
 import me.sat7.dynamicshop.utilities.ShopUtil;
 import org.bukkit.command.CommandSender;
@@ -11,9 +12,9 @@ import org.bukkit.entity.Player;
 import static me.sat7.dynamicshop.constants.Constants.P_ADMIN_SHOP_EDIT;
 import static me.sat7.dynamicshop.utilities.LangUtil.t;
 
-public class MaxPage extends DSCMD
+public class Currency extends DSCMD
 {
-    public MaxPage()
+    public Currency()
     {
         inGameUseOnly = false;
         permission = P_ADMIN_SHOP_EDIT;
@@ -23,8 +24,8 @@ public class MaxPage extends DSCMD
     @Override
     public void SendHelpMessage(Player player)
     {
-        player.sendMessage(DynamicShop.dsPrefix(player) + t(player, "HELP.TITLE").replace("{command}", "maxpage"));
-        player.sendMessage(" - " + t(player, "HELP.USAGE") + ": ... maxpage <number>");
+        player.sendMessage(DynamicShop.dsPrefix(player) + t(player, "HELP.TITLE").replace("{command}", "currency"));
+        player.sendMessage(" - " + t(player, "HELP.USAGE") + ": ... currency <currency>");
 
         player.sendMessage("");
     }
@@ -38,24 +39,18 @@ public class MaxPage extends DSCMD
         String shopName = Shop.GetShopName(args);
         CustomConfig shopData = ShopUtil.shopConfigFiles.get(shopName);
 
-        int newValue;
-        try
+        if (args[3].equalsIgnoreCase(Constants.S_VAULT) ||
+            args[3].equalsIgnoreCase(Constants.S_EXP) ||
+            args[3].equalsIgnoreCase(Constants.S_PLAYERPOINT) ||
+            args[3].equalsIgnoreCase(Constants.S_JOBPOINT))
         {
-            newValue = Integer.parseInt(args[3]);
-        } catch (Exception e)
-        {
-            sender.sendMessage(DynamicShop.dsPrefix(sender) + t(sender, "ERR.WRONG_DATATYPE"));
-            return;
-        }
+            shopData.get().set("Options.currency", args[3].toLowerCase());
+            shopData.save();
 
-        if (newValue <= 0)
-        {
-            sender.sendMessage(DynamicShop.dsPrefix(sender) + t(sender, "ERR.VALUE_ZERO"));
+            sender.sendMessage(DynamicShop.dsPrefix(sender) + t(sender, "MESSAGE.CHANGES_APPLIED") + args[2] + " " + args[3]);
         } else
         {
-            shopData.get().set("Options.page", newValue);
-            sender.sendMessage(DynamicShop.dsPrefix(sender) + t(sender, "MESSAGE.CHANGES_APPLIED") + args[3]);
-            shopData.save();
+            sender.sendMessage(DynamicShop.dsPrefix(sender) + t(sender, "ERR.WRONG_USAGE"));
         }
     }
 }

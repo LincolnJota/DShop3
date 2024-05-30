@@ -9,7 +9,6 @@ import me.sat7.dynamicshop.DynamicShop;
 import me.sat7.dynamicshop.guis.StartPage;
 
 import static me.sat7.dynamicshop.constants.Constants.P_ADMIN_RELOAD;
-import static me.sat7.dynamicshop.utilities.ConfigUtil.configVersion;
 import static me.sat7.dynamicshop.utilities.LangUtil.t;
 
 public final class Reload extends DSCMD
@@ -51,18 +50,20 @@ public final class Reload extends DSCMD
         SoundUtil.ccSound.reload();
         SoundUtil.setupSoundFile();
 
-        DynamicShop.plugin.reloadConfig();
-        ConfigUtil.configSetup(DynamicShop.plugin);
+        ConfigUtil.Load();
+
         DynamicShop.plugin.PeriodicRepetitiveTask();
 
+        DynamicShop.plugin.startSaveLogsTask();
         DynamicShop.plugin.startCullLogsTask();
+        DynamicShop.plugin.StartShopSaveTask();
+
+        DynamicShop.plugin.StartUserDataTask();
 
         QuickSell.quickSellGui.reload();
         QuickSell.SetupQuickSellGUIFile();
 
-        LangUtil.setupLangFile(DynamicShop.plugin.getConfig().getString("Language"));
-
-        DynamicShop.plugin.getConfig().set("Version", configVersion);
+        LangUtil.setupLangFile(ConfigUtil.GetLanguage()); // ConfigUtil.Load() 보다 밑에 있어야함.
 
         sender.sendMessage(DynamicShop.dsPrefix(sender) + t(sender, "HELP.RELOADED"));
     }
